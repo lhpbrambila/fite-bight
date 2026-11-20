@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#13131a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Noctis Dominion — Idle RPG Gótico</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+
+  <!-- ONBOARDING -->
+  <section id="faction-screen" class="faction-screen hidden">
+    <h1 class="gothic-title">Noctis Dominion</h1>
+    <p class="gothic-subtitle">Escolha sua linhagem nas sombras eternas</p>
+
+    <div class="input-group">
+      <label for="player-name-input">Nome do Imortal</label>
+      <input type="text" id="player-name-input" placeholder="Ex.: Vladislav, Fenrir..." maxlength="18" />
+    </div>
+
+    <div class="faction-cards">
+      <div id="btn-choose-vampire" class="faction-card vampire">
+        <h3>🩸 Clã Vampírico</h3>
+        <p>Aristocratas da noite com drenagem vital e hemorragia arcana.</p>
+        <span class="bonus-tag">+15% Ouro Trabalho • +10% Agilidade</span>
+      </div>
+
+      <div id="btn-choose-werewolf" class="faction-card werewolf">
+        <h3>🐺 Matilha Licantropa</h3>
+        <p>Predadores primordiais com frenesi lunar e garras dilacerantes.</p>
+        <span class="bonus-tag">+10% Força • +15% Vitalidade</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- APP PRINCIPAL -->
+  <div id="app">
+    <header>
+      <div class="header-top">
+        <div class="char-identity">
+          <div class="avatar-badge" id="ui-avatar">🩸</div>
+          <div>
+            <div class="char-name" id="ui-name">Iniciado</div>
+            <div class="char-meta" id="ui-subtitle">Nvl 1 • Vampiro</div>
+          </div>
+        </div>
+        <div id="ui-status-badge" style="font-size: 0.72rem; color: var(--text-secondary);">Livre</div>
+      </div>
+
+      <div class="resources-grid">
+        <div class="res-pill"><span class="res-label">Ouro</span><span class="res-value res-gold" id="ui-gold">0</span></div>
+        <div class="res-pill"><span class="res-label">XP</span><span class="res-value res-xp" id="ui-xp">0/100</span></div>
+        <div class="res-pill"><span class="res-label">Vida</span><span class="res-value res-hp" id="ui-hp">100/100</span></div>
+        <div class="res-pill"><span class="res-label">Energia</span><span class="res-value res-energy" id="ui-energy">100/100</span></div>
+      </div>
+    </header>
+
+    <main>
+      <!-- ABA 1: HERÓI -->
+      <section id="tab-character" class="tab-panel active">
+        <div class="card">
+          <div class="card-title"><span>Equipamento Atual</span></div>
+          <div class="equip-slots" id="equipped-slots"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>Atributos</span>
+            <span style="font-size: 0.68rem; color: var(--text-secondary);" id="ui-faction-bonus"></span>
+          </div>
+          <div id="stats-list"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span>Habilidades de Linhagem</span></div>
+          <div id="ui-skills-list"></div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.8rem; margin-top: 10px;">
+            <div>Dano: <strong id="ui-derived-dmg">0</strong></div>
+            <div>Armadura: <strong id="ui-derived-def">0</strong></div>
+            <div>Esquiva: <strong id="ui-derived-dodge">0%</strong></div>
+            <div>Crítico: <strong id="ui-derived-crit">0%</strong></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ABA 2: CAÇADA, CHEFE & MISSÕES -->
+      <section id="tab-hunt" class="tab-panel">
+        <div class="card" style="border-color: rgba(234, 179, 8, 0.4);">
+          <div class="card-title"><span>👑 Chefe de Marco</span></div>
+          <div id="ui-boss-info" style="margin-bottom: 8px;"></div>
+          <button class="btn btn-primary btn-block" id="btn-fight-boss">Desafiar Chefe</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>Caçada nas Sombras</span>
+            <span style="font-size: 0.72rem; color: var(--energy);" id="ui-hunt-cost">Custo: 15 ⚡</span>
+          </div>
+          <div class="hunt-targets" id="hunt-targets-list"></div>
+          <div class="btn-row">
+            <button class="btn" id="btn-refresh-targets">🔄 Novos Alvos</button>
+            <button class="btn btn-primary" id="btn-auto-hunt">⚡ Auto-Caçada (5x)</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span>Relatório Tático</span></div>
+          <div class="combat-log" id="combat-log">
+            <div style="color: var(--text-muted); text-align: center;">Selecione um alvo para iniciar.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span>📜 Missões Ativas</span></div>
+          <div id="quests-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+      </section>
+
+      <!-- ABA 3: DOMÍNIO (TRABALHO & ESCONDERIJO) -->
+      <section id="tab-work" class="tab-panel">
+        <div class="card">
+          <div class="card-title">
+            <span>Guarda Noturna (Idle)</span>
+            <span style="font-size: 0.72rem; color: var(--gold);" id="ui-work-rate">+0 Ouro/h</span>
+          </div>
+
+          <div id="work-setup-panel">
+            <div class="work-options">
+              <button class="work-option-btn selected" data-hours="1"><strong>1 Hora</strong><span>Turno rápido</span></button>
+              <button class="work-option-btn" data-hours="4"><strong>4 Horas</strong><span>Vigília noturna</span></button>
+              <button class="work-option-btn" data-hours="8"><strong>8 Horas</strong><span>Sono profundo</span></button>
+              <button class="work-option-btn" data-hours="0"><strong>Contínuo (∞)</strong><span>Até coletar</span></button>
+            </div>
+            <button class="btn btn-primary btn-block" id="btn-start-work">Iniciar Trabalho</button>
+          </div>
+
+          <div id="work-active-panel" style="display: none;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.84rem;">
+              <strong id="ui-work-mode-label">Trabalhando...</strong>
+              <span id="ui-work-timer">00:00:00</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill" id="ui-work-progress"></div></div>
+            <div style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 10px;">
+              Acumulado: <strong class="res-gold" id="ui-work-pending-gold">0</strong> Ouro e <strong class="res-xp" id="ui-work-pending-xp">0</strong> XP
+            </div>
+            <button class="btn btn-primary btn-block" id="btn-claim-work">Encerrar e Coletar</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>Esconderijo (Hideout)</span>
+            <span style="font-size: 0.72rem; color: var(--gold);" id="ui-passive-income">Renda: +0/h</span>
+          </div>
+          <div id="hideout-list"></div>
+        </div>
+      </section>
+
+      <!-- ABA 4: PRESTÍGIO ("DESPERTAR ANCESTRAL") -->
+      <section id="tab-prestige" class="tab-panel">
+        <div class="card" style="border-color: #a855f7;">
+          <div class="card-title">
+            <span>✨ Despertar Ancestral</span>
+            <span style="font-size: 0.75rem; color: #d8b4fe;">Ciclos: <strong id="ui-awaken-count">0</strong></span>
+          </div>
+          <p style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 10px;">
+            Sacrifique seu nível, ouro, atributos, itens e esconderijo para despertar seu sangue antigo e obter <strong>Essências Ancestrais</strong> permanentes.
+          </p>
+          <div style="background: var(--bg-elevated); padding: 10px; border-radius: 8px; margin-bottom: 10px; text-align: center;">
+            Essências Disponíveis: <strong style="color: #d8b4fe; font-size: 1.1rem;" id="ui-essence-count">0</strong> ✨
+          </div>
+          <button class="btn btn-primary btn-block" style="background:#7e22ce; border-color:#9333ea;" id="btn-awaken">
+            Despertar Agora
+          </button>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span>Dons Eternos (Permanentes)</span></div>
+          <div id="prestige-upgrades-list"></div>
+        </div>
+      </section>
+
+      <!-- ABA 5: MERCADO -->
+      <section id="tab-market" class="tab-panel">
+        <div class="card">
+          <div class="card-title">
+            <span>Mercado & Mochila</span>
+            <button class="btn btn-sm btn-gold" id="btn-refresh-shop">🔄 Renovar (25 🪙)</button>
+          </div>
+          <div class="subtabs">
+            <button class="btn btn-primary" id="subtab-shop">🛒 Loja</button>
+            <button class="btn" id="subtab-inventory">🎒 Inventário</button>
+          </div>
+          <div id="market-list"></div>
+        </div>
+      </section>
+
+      <!-- ABA 6: SAVE & DIAGNÓSTICO -->
+      <section id="tab-settings" class="tab-panel">
+        <div class="card">
+          <div class="card-title"><span>Backup Manual (Base64 / JSON)</span></div>
+          <textarea id="save-data-textarea" class="save-box" placeholder="Código Base64 do seu save..."></textarea>
+          <div class="btn-row">
+            <button class="btn" id="btn-export-save">📤 Exportar</button>
+            <button class="btn btn-primary" id="btn-import-save">📥 Importar</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span>Validação de Integridade</span></div>
+          <button class="btn btn-block" id="btn-run-tests">🧪 Executar Testes de Fórmulas e Offline</button>
+          <div id="diagnostics-output" style="margin-top: 8px; font-size: 0.76rem; display:flex; flex-direction:column; gap:4px;"></div>
+        </div>
+
+        <div class="card">
+          <button class="btn btn-block" style="border-color: var(--danger); color: var(--danger);" id="btn-reset-save">
+            🗑️ Reset Total (Apagar Tudo)
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <!-- NAVEGAÇÃO INFERIOR (6 ABAS COMPACTAS) -->
+    <nav class="bottom-nav" style="grid-template-columns: repeat(6, 1fr);">
+      <button class="nav-btn active" data-tab="tab-character"><span class="icon">🧛</span><span>Herói</span></button>
+      <button class="nav-btn" data-tab="tab-hunt"><span class="icon">⚔️</span><span>Caçada</span></button>
+      <button class="nav-btn" data-tab="tab-work"><span class="icon">🏰</span><span>Domínio</span></button>
+      <button class="nav-btn" data-tab="tab-prestige"><span class="icon">✨</span><span>Despertar</span></button>
+      <button class="nav-btn" data-tab="tab-market"><span class="icon">🛒</span><span>Loja</span></button>
+      <button class="nav-btn" data-tab="tab-settings"><span class="icon">📜</span><span>Save</span></button>
+    </nav>
+  </div>
+
+  <!-- MODAL OFFLINE -->
+  <div id="offline-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h3>🌙 Retorno das Sombras</h3>
+      <p id="offline-modal-text" style="font-size: 0.86rem; color: var(--text-secondary); margin-bottom: 14px;"></p>
+      <button class="btn btn-primary btn-block" id="btn-close-modal">Continuar</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
