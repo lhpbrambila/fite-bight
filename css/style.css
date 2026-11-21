@@ -147,7 +147,7 @@ body {
 .faction-card:active { transform: scale(0.98); }
 .faction-card.vampire:hover { border-color: #dc2626; }
 .faction-card.werewolf:hover { border-color: #d97706; }
-.faction-card h3 { font-family: var(--font-serif); font-size: 1.2rem; margin-bottom: 4px; }
+.faction-card h3 { font-family: var(--font-serif); font-size: 1.2rem; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
 .faction-card p { font-size: 0.84rem; color: var(--text-secondary); margin-bottom: 8px; }
 .bonus-tag {
   display: inline-block;
@@ -283,7 +283,7 @@ main { padding: 14px; flex: 1; display: flex; flex-direction: column; gap: 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 .stat-row:last-child { border-bottom: none; padding-bottom: 0; }
-.stat-info h4 { font-size: 0.9rem; }
+.stat-info h4 { font-size: 0.9rem; display: flex; align-items: center; gap: 5px; }
 .stat-info p { font-size: 0.73rem; color: var(--text-secondary); }
 .stat-val { font-weight: 700; color: var(--accent-secondary); }
 
@@ -437,7 +437,7 @@ nav.bottom-nav {
   background: #111117;
   border-top: 1px solid var(--border-subtle);
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   z-index: 30;
 }
 
@@ -453,7 +453,7 @@ nav.bottom-nav {
   gap: 3px;
   cursor: pointer;
 }
-.nav-btn span.icon { font-size: 1.15rem; }
+.nav-btn span.icon { font-size: 1.15rem; display: inline-flex; align-items: center; justify-content: center; }
 .nav-btn.active { color: var(--accent-secondary); font-weight: 700; }
 
 /* =========================================================================
@@ -513,4 +513,31 @@ nav.bottom-nav {
 
 .pulse-highlight {
   animation: pulseGlow 0.55s ease-out;
+}
+
+/* =========================================================================
+   ADIÇÕES FASE 4 (V4): BANNER DE DESAFIO & SUB-ABAS COMPACTAS
+   ========================================================================= */
+.challenge-banner {
+  background: rgba(220, 38, 38, 0.16);
+  border-bottom: 1px solid var(--danger);
+  color: #fca5a5;
+  font-size: 0.72rem;
+  padding: 6px 12px;
+  text-align: center;
+}
+.challenge-banner.hidden { display: none; }
+
+.subtabs-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.subtabs-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
 }

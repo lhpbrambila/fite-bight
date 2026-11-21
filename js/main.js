@@ -1,556 +1,569 @@
 /**
  * ============================================================================
- * MAIN.JS — ORQUESTRADOR V3 (PRESTÍGIO, CHEFES, MISSÕES, HABILIDADES E TESTES)
+ * MAIN.JS — ORQUESTRADOR DO LOOP IDLE, EVENTOS E PROGRESSÃO OFFLINE V4
  * ============================================================================
  */
 import { GameConfig } from './config.js';
 import { Formulas } from './formulas.js';
 import { Generators } from './generators.js';
-import { StateManager, createDefaultState } from './state.js';
+import { WorldSystems } from './systems.js';
+import { AbyssEngine } from './abyss.js';
 import { CombatEngine } from './combat.js';
-import { SelfTests } from './tests.js';
-import { SafeMath } from './utils.js';
+import { StateManager } from './state.js';
+import { Diagnostics } from './tests.js';
 import { UI } from './ui.js';
+import { SafeMath } from './utils.js';
 
-const App = {
-  huntTargets: [],
-  currentBoss: null,
-  lastTickMs: Date.now(),
+let huntTargets = [];
+let currentBoss = null;
 
-  init() {
-    this.registerServiceWorker();
+function init() {
+  const hasSave = StateManager.load();
+  const state = StateManager.state;
 
-    const callbacks = {
-      onCreateChar: (faction) => this.createCharacter(faction),
-      onUpgradeStat: (key) => this.upgradeStat(key),
-      onStartWork: (hours) => this.startWork(hours),
-      onClaimWork: () => this.claimWork(),
-      onUpgradeHideout: (id) => this.upgradeHideout(id),
-      onRefreshTargets: () => this.refreshTargets(),
-      onHuntTarget: (target) => this.huntTarget(target),
-      onAutoHunt: () => this.autoHunt(),
-      onFightBoss: () => this.fightBoss(),
-      onClaimQuest: (idx) => this.claimQuest(idx),
-      onAwaken: () => this.performAwakening(),
-      onBuyPrestigeUpgrade: (id) => this.buyPrestigeUpgrade(id),
-      onBuyItem: (idx) => this.buyItem(idx),
-      onEquipItem: (idx) => this.equipItem(idx),
-      onSellItem: (idx) => this.sellItem(idx),
-      onUseConsumable: (idx) => this.useConsumable(idx),
-      onRefreshShop: () => this.refreshShop(true),
-      onAfterImport: () => this.onStateLoaded(false),
-      onRunTests: () => this.runDiagnostics(),
-      onResetGame: () => this.resetGame()
-    };
+  const callbacks = {
+    onCreateChar(faction) {
+      const nameInput = document.getElementById('player-name-input').value;
+      StateManager.state = StateManager.createDefaultState(nameInput, faction);
+      const profile = Formulas.getCombatProfile(Formulas.getEffectiveStats(StateManager.state), 1, StateManager.state);
+      StateManager.state.currentHp = profile.maxHp;
+      StateManager.save();
+      document.getElementById('faction-screen').classList.add('hidden');
+      bootGame();
+    },
 
-    // Adiciona listener para Prestígio upgrades no UI
-    this._callbacks = callbacks;
-    UI.bindGlobalEvents(callbacks);
+    onUpgradeStat(statKey) {
+      const s = StateManager.state;
+      if (s.activity.type !== 'idle') return;
+      const cost = Formulas.statUpgradeCost(s.stats[statKey], s);
+      if (s.gold < cost) return;
+      s.gold -= cost;
+      s.stats[statKey] += 1;
+      clampResources();
+      StateManager.save();
+      refreshUI();
+    },
 
-    const { loaded, migrated } = StateManager.load();
-    if (!loaded || !StateManager.state.initialized) {
-      document.getElementById('faction-screen').classList.remove('hidden');
-      return;
+    onStartWork(hours) {
+      const s = StateManager.state;
+      if (s.activity.type !== 'idle') return;
+      s.activity = {
+        type: 'working',
+        startTime: Date.now(),
+        durationSec: hours > 0 ? hours * 3600 : 0
+      };
+      StateManager.save();
+      refreshUI();
+    },
+
+    onClaimWork() {
+      const s = StateManager.state;
+      if (s.activity.type !== 'working') return;
+      const accrued = calculateWorkAccrued(Date.now());
+      s.gold += accrued.gold;
+      s.lifetime.totalGoldEarned += accrued.gold;
+      grantXp(accrued.xp);
+      s.activity = { type: 'idle', startTime: 0, durationSec: 0 };
+      StateManager.save();
+      refreshUI();
+      UI.showToast(`Coletado: +${SafeMath.formatNumber(accrued.gold)} Ouro e +${SafeMath.formatNumber(accrued.xp)} XP!`);
+    },
+
+    onUpgradeHideout(buildingId) {
+      const s = StateManager.state;
+      const cfg = GameConfig.hideoutBuildings[buildingId];
+      const lvl = s.hideout[buildingId] || 0;
+      if (lvl >= cfg.maxLevel) return;
+      const cost = Formulas.hideoutUpgradeCost(buildingId, lvl, s);
+      if (s.gold < cost) return;
+      s.gold -= cost;
+      s.hideout[buildingId] = lvl + 1;
+      clampResources();
+      StateManager.save();
+      refreshUI();
+    },
+
+    onRecruitFollower() {
+      const s = StateManager.state;
+      const maxSlots = WorldSystems.getMaxClanSlots(s);
+      const cost = WorldSystems.getRecruitCost(s.followers.length);
+      if (s.followers.length >= maxSlots || s.gold < cost || s.expedition) return;
+      s.gold -= cost;
+      const follower = WorldSystems.generateFollower(s.level);
+      s.followers.push(follower);
+      StateManager.save();
+      refreshUI();
+      UI.showToast(`${follower.name} (${follower.className}) juntou-se ao clã!`);
+    },
+
+    onStartExpedition(regionId, squadUids, hours) {
+      const s = StateManager.state;
+      if (s.expedition || squadUids.length === 0) return;
+      const squad = s.followers.filter(f => squadUids.includes(f.uid));
+      const hasScout = squad.some(f => f.classId === 'scout');
+      const speedMult = hasScout ? 0.90 : 1.0;
+
+      squad.forEach(f => { f.onExpedition = true; });
+      s.expedition = {
+        regionId,
+        squadUids: squad.map(f => f.uid),
+        startTime: Date.now(),
+        durationSec: Math.floor(hours * 3600 * speedMult)
+      };
+      UI.selectedSquad.clear();
+      StateManager.save();
+      refreshUI();
+      UI.showToast('Esquadrão enviado em expedição!');
+    },
+
+    onClaimExpedition() {
+      const s = StateManager.state;
+      if (!s.expedition) return;
+      const elapsed = Math.floor((Date.now() - s.expedition.startTime) / 1000);
+      if (elapsed < s.expedition.durationSec) {
+        UI.showToast('A expedição ainda está em andamento.');
+        return;
+      }
+      const squad = s.followers.filter(f => s.expedition.squadUids.includes(f.uid));
+      const rewards = WorldSystems.resolveExpeditionRewards(s.expedition, squad, s);
+      squad.forEach(f => { f.onExpedition = false; });
+
+      s.materials.scrap += rewards.scrap;
+      s.materials.lunarShards += rewards.lunarShards;
+      grantXp(rewards.xp);
+      if (rewards.foundRune) s.runes.push(rewards.foundRune);
+      s.lifetime.expeditionsCompleted += 1;
+      s.expedition = null;
+
+      StateManager.save();
+      refreshUI();
+      UI.showToast(`Expedição concluída: +${rewards.scrap} Sucata, +${rewards.lunarShards} Frag. Lunares${rewards.foundRune ? ` e ${rewards.foundRune.name}!` : '!'}`);
+    },
+
+    onHuntTarget(target) {
+      const s = StateManager.state;
+      const cost = GameConfig.curves.huntEnergyCost;
+      if (s.currentEnergy < cost || s.activity.type !== 'idle') return;
+      s.currentEnergy -= cost;
+      runCombat(target);
+    },
+
+    onRefreshTargets() {
+      huntTargets = Generators.generateHuntTargets(StateManager.state.level);
+      refreshUI();
+    },
+
+    onAutoHunt() {
+      const s = StateManager.state;
+      const cost = GameConfig.curves.huntEnergyCost;
+      if (s.currentEnergy < cost || s.activity.type !== 'idle') return;
+      let runs = 0;
+      const combinedLogs = [];
+      while (s.currentEnergy >= cost && runs < GameConfig.curves.autoHuntMaxRuns && s.currentHp > 1) {
+        s.currentEnergy -= cost;
+        const target = huntTargets[0] || Generators.generateHuntTargets(s.level)[0];
+        const res = executeSingleBattle(target);
+        combinedLogs.push(...res.logs);
+        runs++;
+        if (!res.won) break;
+      }
+      UI.renderCombatLog(combinedLogs);
+      StateManager.save();
+      refreshUI();
+    },
+
+    onFightBoss() {
+      const s = StateManager.state;
+      const cost = GameConfig.curves.bossEnergyCost;
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (s.currentEnergy < cost || s.activity.type !== 'idle') return;
+      if (nowSec < s.lastBossAttempt + GameConfig.curves.bossCooldownSec) return;
+      s.currentEnergy -= cost;
+      s.lastBossAttempt = nowSec;
+      runCombat(currentBoss, true);
+    },
+
+    onFightAbyss() {
+      const s = StateManager.state;
+      if (s.activity.type !== 'idle') return;
+      const enemy = AbyssEngine.generateFloorEnemy(s.abyss.floor);
+      runCombat(enemy, false, true);
+    },
+
+    onClaimQuest(idx) {
+      const s = StateManager.state;
+      const q = s.quests[idx];
+      if (!q || q.progress < q.target) return;
+      s.gold += q.rewardGold;
+      s.lifetime.totalGoldEarned += q.rewardGold;
+      grantXp(q.rewardXp);
+      const fresh = Generators.generateQuests(s.level);
+      s.quests[idx] = fresh[idx % fresh.length];
+      StateManager.save();
+      refreshUI();
+      UI.showToast('Recompensa de missão coletada!');
+    },
+
+    onBuyItem(idx) {
+      const s = StateManager.state;
+      const item = s.shopStock[idx];
+      if (!item || s.gold < item.price) return;
+      s.gold -= item.price;
+      s.inventory.push({ ...item, uid: `inv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}` });
+      if (item.type !== 'consumable') {
+        s.shopStock.splice(idx, 1);
+      }
+      StateManager.save();
+      refreshUI();
+      UI.showToast(`${item.name} adicionado à Bolsa!`);
+    },
+
+    onRefreshShop() {
+      const s = StateManager.state;
+      if (s.gold < 25) return;
+      s.gold -= 25;
+      s.shopStock = Generators.generateShopStock(s.level);
+      StateManager.save();
+      refreshUI();
+    },
+
+    onUseConsumable(idx) {
+      const s = StateManager.state;
+      const item = s.inventory[idx];
+      if (!item || item.type !== 'consumable') return;
+      const combat = Formulas.getCombatProfile(Formulas.getEffectiveStats(s), s.level, s);
+      const maxEnergy = Formulas.getMaxEnergy(s);
+
+      if (item.effect === 'heal_hp') {
+        s.currentHp = Math.min(combat.maxHp, s.currentHp + Math.ceil(combat.maxHp * item.amountPct));
+      } else if (item.effect === 'restore_energy') {
+        s.currentEnergy = Math.min(maxEnergy, s.currentEnergy + item.amountFlat);
+      }
+      s.inventory.splice(idx, 1);
+      StateManager.save();
+      refreshUI();
+      UI.showToast(`${item.name} utilizado!`);
+    },
+
+    onEquipItem(idx) {
+      const s = StateManager.state;
+      const item = s.inventory[idx];
+      if (!item || item.type === 'consumable') return;
+      if (s.challenges?.active === 'bare_hands' && (item.slot === 'weapon' || item.slot === 'relic')) {
+        UI.showToast('Bloqueado pelo desafio Mãos Nuas!');
+        return;
+      }
+      const previous = s.equipment[item.slot];
+      s.equipment[item.slot] = item;
+      s.inventory.splice(idx, 1);
+      if (previous) s.inventory.push(previous);
+      clampResources();
+      StateManager.save();
+      refreshUI();
+      UI.triggerPulse('equipped-slots');
+      UI.showToast(`${item.name} equipado!`);
+    },
+
+    onSalvageItem(idx) {
+      const s = StateManager.state;
+      const item = s.inventory[idx];
+      if (!item || item.type === 'consumable') return;
+      const scrap = WorldSystems.getSalvageValue(item);
+      s.materials.scrap += scrap;
+      s.inventory.splice(idx, 1);
+      StateManager.save();
+      refreshUI();
+      UI.showToast(`Item sucatado: +${scrap} Sucata Arcana!`);
+    },
+
+    onForgeUpgrade(slot) {
+      const s = StateManager.state;
+      const item = s.equipment[slot];
+      if (!item || item.upgradeLevel >= GameConfig.curves.maxUpgradeLevel) return;
+      const cost = WorldSystems.getForgeUpgradeCost(item, s);
+      if (s.materials.scrap < cost.scrap || s.gold < cost.gold) return;
+      s.materials.scrap -= cost.scrap;
+      s.gold -= cost.gold;
+      item.upgradeLevel = (item.upgradeLevel || 0) + 1;
+      clampResources();
+      StateManager.save();
+      refreshUI();
+      UI.showToast(`${item.name} aprimorado para +${item.upgradeLevel}!`);
+    },
+
+    onSocketRune(slot) {
+      const s = StateManager.state;
+      const item = s.equipment[slot];
+      if (!item || s.runes.length === 0) return;
+      const maxSlots = WorldSystems.getItemRuneSlots(item, s);
+      item.runes = item.runes || [];
+      if (item.runes.length >= maxSlots) return;
+      const rune = s.runes.shift();
+      item.runes.push(rune.id);
+      clampResources();
+      StateManager.save();
+      refreshUI();
+      UI.showToast(`${rune.name} encaixada!`);
+    },
+
+    onUnsocketRune(slot, runeIdx) {
+      const s = StateManager.state;
+      const item = s.equipment[slot];
+      if (!item?.runes?.[runeIdx]) return;
+      const [removedId] = item.runes.splice(runeIdx, 1);
+      const meta = GameConfig.runeCatalog.find(r => r.id === removedId);
+      if (meta) s.runes.push({ ...meta, uid: `rune_${Date.now()}` });
+      clampResources();
+      StateManager.save();
+      refreshUI();
+    },
+
+    onAwaken() {
+      const s = StateManager.state;
+      if (s.level < GameConfig.prestige.minLevelRequired) return;
+      const gain = Formulas.calculatePrestigeGain(s);
+      performPrestigeReset(gain, null);
+      UI.showToast(`Despertar concluído! +${SafeMath.formatNumber(gain)} Essências!`);
+    },
+
+    onStartChallenge(challengeId) {
+      const gain = StateManager.state.level >= GameConfig.prestige.minLevelRequired
+        ? Formulas.calculatePrestigeGain(StateManager.state)
+        : 0;
+      performPrestigeReset(gain, challengeId);
+      UI.showToast('Novo ciclo iniciado sob Desafio de Sangue!');
+    },
+
+    onCompleteChallenge() {
+      const s = StateManager.state;
+      const chId = s.challenges?.active;
+      if (!chId) return;
+      s.challenges.completed[chId] = true;
+      s.challenges.active = null;
+      StateManager.save();
+      refreshUI();
+      UI.showToast('Desafio de Sangue concluído! Bônus permanente desbloqueado.');
+    },
+
+    onAfterImport() {
+      huntTargets = Generators.generateHuntTargets(StateManager.state.level);
+      currentBoss = Generators.generateMilestoneBoss(StateManager.state.bossesDefeated);
+      UI.applyFactionTheme(StateManager.state.faction);
+      refreshUI();
+    },
+
+    onRunTests() {
+      const out = document.getElementById('diagnostics-output');
+      const results = Diagnostics.runAll();
+      out.innerHTML = results.map(r =>
+        `<div style="color:${r.pass ? 'var(--success)' : 'var(--danger)'}">${r.pass ? '[OK]' : '[FALHA]'} ${r.label}</div>`
+      ).join('');
+    },
+
+    onResetGame() {
+      if (!confirm('Apagar todo o progresso permanentemente?')) return;
+      StateManager.resetAll();
+      location.reload();
     }
+  };
 
-    this.onStateLoaded(migrated);
-    this.startLoops(callbacks);
-  },
+  UI.bindGlobalEvents(callbacks);
 
-  registerServiceWorker() {
-    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-      navigator.serviceWorker.register('./sw.js').catch(() => {});
-    }
-  },
+  if (!hasSave || !state.created) {
+    document.getElementById('faction-screen').classList.remove('hidden');
+  } else {
+    bootGame(callbacks);
+  }
 
-  onStateLoaded(wasMigrated) {
-    document.getElementById('faction-screen').classList.add('hidden');
-    UI.applyFactionTheme(StateManager.state.faction);
-
-    const offlineReport = StateManager.processOfflineProgress((now) => this.calculateWorkAccrued(now));
-    if (offlineReport) {
-      UI.showOfflineModal(offlineReport.message);
-    } else if (wasMigrated) {
-      UI.showToast('Save anterior migrado para v3!');
-    }
-
-    if (StateManager.state.quests.length === 0) {
-      StateManager.state.quests = Generators.generateQuestSet(StateManager.state);
-    }
-
-    this.huntTargets = Generators.generateHuntTargets(StateManager.state.level, StateManager.state.faction);
-    this.currentBoss = Generators.generateBoss(StateManager.state.level, StateManager.state.bossesDefeated);
-    this.render();
-  },
-
-  startLoops(callbacks) {
-    this._callbacks = callbacks;
-    this.lastTickMs = Date.now();
+  function bootGame(cb = callbacks) {
+    const s = StateManager.state;
+    UI.applyFactionTheme(s.faction);
+    huntTargets = Generators.generateHuntTargets(s.level);
+    currentBoss = Generators.generateMilestoneBoss(s.bossesDefeated);
+    processOfflineProgress();
+    refreshUI(cb);
 
     setInterval(() => {
-      const now = Date.now();
-      const dtSec = Math.max(0, (now - this.lastTickMs) / 1000);
-      this.lastTickMs = now;
-
-      this.processOnlineRegen(dtSec);
-      UI.updateWorkPanel((t) => this.calculateWorkAccrued(t));
+      tickLoop();
+      refreshUI(cb);
     }, 1000);
-
-    setInterval(() => StateManager.save(), 15000);
-  },
-
-  render() {
-    UI.renderAll(this._callbacks, this.huntTargets, this.currentBoss, (t) => this.calculateWorkAccrued(t));
-  },
-
-  createCharacter(factionId) {
-    const rawName = document.getElementById('player-name-input').value.trim();
-    const s = createDefaultState();
-    s.initialized = true;
-    s.name = rawName || (factionId === 'vampire' ? 'Lorde Carmesim' : 'Presa Lunar');
-    s.faction = factionId;
-
-    const eff = Formulas.getEffectiveStats(s);
-    s.currentHp = Formulas.getCombatProfile(eff, 1).maxHp;
-    s.currentEnergy = Formulas.getMaxEnergy(s);
-    s.shopStock = Generators.generateShopStock(1);
-    s.quests = Generators.generateQuestSet(s);
-
-    StateManager.state = s;
-    StateManager.save();
-
-    document.getElementById('faction-screen').classList.add('hidden');
-    UI.applyFactionTheme(factionId);
-    this.huntTargets = Generators.generateHuntTargets(1, factionId);
-    this.currentBoss = Generators.generateBoss(1, 0);
-    this.startLoops(this._callbacks);
-    this.render();
-  },
-
-  trackQuestProgress(type, amount) {
-    if (amount <= 0) return;
-    StateManager.state.quests.forEach(q => {
-      if (q.type === type && q.progress < q.target) {
-        q.progress = Math.min(q.target, q.progress + amount);
-      }
-    });
-  },
-
-  grantGold(amount) {
-    const clean = SafeMath.int(amount, 0);
-    if (clean <= 0) return;
-    StateManager.state.gold += clean;
-    this.trackQuestProgress('gold_earned', clean);
-  },
-
-  addXp(amount) {
-    const s = StateManager.state;
-    s.xp += SafeMath.int(amount, 0);
-    let leveled = false;
-    while (s.xp >= Formulas.xpToNextLevel(s.level)) {
-      s.xp -= Formulas.xpToNextLevel(s.level);
-      s.level += 1;
-      leveled = true;
-    }
-    if (leveled) {
-      const eff = Formulas.getEffectiveStats(s);
-      s.currentHp = Formulas.getCombatProfile(eff, s.level).maxHp;
-      s.currentEnergy = Formulas.getMaxEnergy(s);
-      s.shopStock = Generators.generateShopStock(s.level);
-      this.currentBoss = Generators.generateBoss(s.level, s.bossesDefeated);
-      UI.triggerPulse('ui-avatar');
-      UI.showToast(`🎉 Nível ${s.level} alcançado!`);
-    }
-  },
-
-  processOnlineRegen(dtSec) {
-    const s = StateManager.state;
-    if (!s.initialized) return;
-
-    const dtMin = dtSec / 60;
-    const eff = Formulas.getEffectiveStats(s);
-    const maxHp = Formulas.getCombatProfile(eff, s.level).maxHp;
-    const maxEnergy = Formulas.getMaxEnergy(s);
-    const bastionBonus = 1 + (s.hideout.bastion || 0) * 0.05;
-
-    let changed = false;
-    if (s.currentHp < maxHp) {
-      s.currentHp = Math.min(maxHp, s.currentHp + (maxHp * GameConfig.curves.hpRegenPctPerMin * bastionBonus * dtMin));
-      changed = true;
-    }
-    if (s.currentEnergy < maxEnergy) {
-      s.currentEnergy = Math.min(maxEnergy, s.currentEnergy + (GameConfig.curves.energyRegenPerMin * dtMin));
-      changed = true;
-    }
-
-    const passivePerHr = Formulas.getPassiveGoldPerHour(s);
-    if (passivePerHr > 0) {
-      this._passiveGoldBuffer = (this._passiveGoldBuffer || 0) + (passivePerHr / 3600) * dtSec;
-      if (this._passiveGoldBuffer >= 1) {
-        const whole = Math.floor(this._passiveGoldBuffer);
-        this.grantGold(whole);
-        this._passiveGoldBuffer -= whole;
-        changed = true;
-      }
-    }
-
-    if (changed) {
-      document.getElementById('ui-gold').textContent = SafeMath.formatNumber(s.gold);
-      document.getElementById('ui-hp').textContent = `${SafeMath.formatNumber(s.currentHp)}/${SafeMath.formatNumber(maxHp)}`;
-      document.getElementById('ui-energy').textContent = `${Math.floor(s.currentEnergy)}/${maxEnergy}`;
-    }
-  },
-
-  upgradeStat(key) {
-    const s = StateManager.state;
-    if (s.activity.type !== 'idle') {
-      UI.showToast('Encerre o trabalho antes de treinar!');
-      return;
-    }
-    const cost = Formulas.statUpgradeCost(s.stats[key]);
-    if (s.gold < cost) return;
-
-    s.gold -= cost;
-    s.stats[key] += 1;
-    this.trackQuestProgress('stat_upgrades', 1);
-
-    if (key === 'vitality') {
-      const eff = Formulas.getEffectiveStats(s);
-      s.currentHp = Formulas.getCombatProfile(eff, s.level).maxHp;
-    }
-    StateManager.save();
-    this.render();
-  },
-
-  // --- TRABALHO ---
-  startWork(hours) {
-    const s = StateManager.state;
-    if (s.activity.type !== 'idle') return;
-    s.activity = { type: 'working', startTime: Date.now(), durationSec: hours * 3600 };
-    StateManager.save();
-    this.render();
-  },
-
-  calculateWorkAccrued(nowMs = Date.now()) {
-    const s = StateManager.state;
-    if (s.activity.type !== 'working' || !s.activity.startTime) {
-      return { elapsedSec: 0, effectiveSec: 0, gold: 0, xp: 0, progressPct: 0, isFinished: false };
-    }
-    const rawElapsed = Math.max(0, Math.floor((nowMs - s.activity.startTime) / 1000));
-    const maxCap = s.activity.durationSec > 0
-      ? Math.min(s.activity.durationSec, GameConfig.maxOfflineSeconds)
-      : GameConfig.maxOfflineSeconds;
-
-    const effectiveSec = Math.min(rawElapsed, maxCap);
-    const rates = Formulas.getWorkHourlyRates(s);
-
-    return {
-      elapsedSec: rawElapsed,
-      effectiveSec,
-      gold: Math.floor((effectiveSec / 3600) * rates.goldPerHour),
-      xp: Math.floor((effectiveSec / 3600) * rates.xpPerHour),
-      isFinished: s.activity.durationSec > 0 && rawElapsed >= s.activity.durationSec,
-      progressPct: s.activity.durationSec > 0
-        ? Math.min(100, (rawElapsed / s.activity.durationSec) * 100)
-        : Math.min(100, (effectiveSec / GameConfig.maxOfflineSeconds) * 100)
-    };
-  },
-
-  claimWork() {
-    const s = StateManager.state;
-    if (s.activity.type !== 'working') return;
-    const accrued = this.calculateWorkAccrued(Date.now());
-    this.grantGold(accrued.gold);
-    this.addXp(accrued.xp);
-    if (accrued.effectiveSec >= 60) {
-      this.trackQuestProgress('work_claims', 1);
-    }
-    s.activity = { type: 'idle', startTime: null, durationSec: 0 };
-    StateManager.save();
-    this.render();
-    UI.showToast(`Coletado: +${SafeMath.formatNumber(accrued.gold)} Ouro e +${SafeMath.formatNumber(accrued.xp)} XP!`);
-  },
-
-  // --- ESCONDERIJO ---
-  upgradeHideout(buildingId) {
-    const s = StateManager.state;
-    const cfg = GameConfig.hideoutBuildings[buildingId];
-    const lvl = s.hideout[buildingId] || 0;
-    if (lvl >= cfg.maxLevel) return;
-
-    const cost = Formulas.hideoutUpgradeCost(buildingId, lvl);
-    if (s.gold < cost) return;
-
-    s.gold -= cost;
-    s.hideout[buildingId] = lvl + 1;
-    StateManager.save();
-    this.render();
-    UI.showToast(`${cfg.name} Nível ${lvl + 1}!`);
-  },
-
-  // --- CAÇADA, CHEFES E MISSÕES ---
-  refreshTargets() {
-    this.huntTargets = Generators.generateHuntTargets(StateManager.state.level, StateManager.state.faction);
-    this.render();
-  },
-
-  huntTarget(target) {
-    const s = StateManager.state;
-    const cost = GameConfig.curves.huntEnergyCost;
-    if (s.activity.type !== 'idle') return UI.showToast('Encerre o trabalho antes de caçar!');
-    if (s.currentEnergy < cost) return UI.showToast('Energia insuficiente!');
-    if (s.currentHp <= 5) return UI.showToast('HP muito baixo!');
-
-    s.currentEnergy -= cost;
-    const result = CombatEngine.simulateBattle(s, target);
-
-    s.currentHp = result.remainingHp;
-    this.grantGold(result.rewardGold);
-    this.addXp(result.rewardXp);
-    if (result.won) this.trackQuestProgress('wins', 1);
-    if (result.droppedItem) s.inventory.push(result.droppedItem);
-
-    this.huntTargets = Generators.generateHuntTargets(s.level, s.faction);
-    StateManager.save();
-    this.render();
-    UI.renderCombatLog(result.logs);
-  },
-
-  autoHunt() {
-    const s = StateManager.state;
-    const cost = GameConfig.curves.huntEnergyCost;
-    if (s.activity.type !== 'idle') return UI.showToast('Encerre o trabalho antes de caçar!');
-    if (s.currentEnergy < cost) return UI.showToast('Energia insuficiente!');
-
-    const maxRuns = Math.min(GameConfig.curves.autoHuntMaxRuns, Math.floor(s.currentEnergy / cost));
-    const summaryLogs = [`⚡ <strong>Auto-Caçada (${maxRuns} incursões)...</strong>`];
-    let totalGold = 0, totalXp = 0, wins = 0, drops = 0;
-
-    for (let i = 0; i < maxRuns; i++) {
-      if (s.currentHp <= 10 || s.currentEnergy < cost) break;
-      const chosen = Generators.generateHuntTargets(s.level, s.faction)[1];
-      s.currentEnergy -= cost;
-
-      const res = CombatEngine.simulateBattle(s, chosen);
-      s.currentHp = res.remainingHp;
-      this.grantGold(res.rewardGold);
-      this.addXp(res.rewardXp);
-
-      totalGold += res.rewardGold;
-      totalXp += res.rewardXp;
-      if (res.won) {
-        wins++;
-        this.trackQuestProgress('wins', 1);
-      }
-      if (res.droppedItem) {
-        s.inventory.push(res.droppedItem);
-        drops++;
-      }
-      summaryLogs.push(`#${i + 1} vs ${chosen.name}: ${res.won ? '✅ Vitória' : '❌ Derrota'} (+${res.rewardGold} 🪙)`);
-    }
-
-    summaryLogs.push(`<span class="log-win">Resumo: ${wins}/${maxRuns} vitórias • +${SafeMath.formatNumber(totalGold)} Ouro • +${SafeMath.formatNumber(totalXp)} XP • ${drops} drop(s).</span>`);
-    this.huntTargets = Generators.generateHuntTargets(s.level, s.faction);
-    StateManager.save();
-    this.render();
-    UI.renderCombatLog(summaryLogs);
-  },
-
-  fightBoss() {
-    const s = StateManager.state;
-    const cost = GameConfig.curves.bossEnergyCost;
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (s.activity.type !== 'idle') return UI.showToast('Encerre o trabalho antes!');
-    if (nowSec < s.lastBossAttempt + GameConfig.curves.bossCooldownSec) return UI.showToast('Chefe em recarga!');
-    if (s.currentEnergy < cost) return UI.showToast('Energia insuficiente!');
-
-    s.currentEnergy -= cost;
-    s.lastBossAttempt = nowSec;
-
-    const result = CombatEngine.simulateBattle(s, this.currentBoss);
-    s.currentHp = result.remainingHp;
-    this.grantGold(result.rewardGold);
-    this.addXp(result.rewardXp);
-    if (result.droppedItem) s.inventory.push(result.droppedItem);
-
-    if (result.won) {
-      s.bossesDefeated += 1;
-      s.prestige.essence += 1;
-      result.logs.push(`<span class="log-drop">✨ Bônus de Chefe: +1 Essência Ancestral permanente!</span>`);
-      this.currentBoss = Generators.generateBoss(s.level, s.bossesDefeated);
-    }
-
-    StateManager.save();
-    this.render();
-    UI.renderCombatLog(result.logs);
-  },
-
-  claimQuest(idx) {
-    const s = StateManager.state;
-    const q = s.quests[idx];
-    if (!q || q.progress < q.target) return;
-
-    this.grantGold(q.rewardGold);
-    this.addXp(q.rewardXp);
-    if (q.rewardEssence > 0) s.prestige.essence += q.rewardEssence;
-
-    // Substitui a missão concluída por uma nova
-    const replacement = Generators.generateQuestSet(s)[0];
-    s.quests[idx] = replacement;
-
-    StateManager.save();
-    this.render();
-    UI.showToast(`Missão concluída! +${SafeMath.formatNumber(q.rewardGold)} Ouro!`);
-  },
-
-  // --- PRESTÍGIO ("DESPERTAR ANCESTRAL") ---
-  performAwakening() {
-    const s = StateManager.state;
-    if (s.level < GameConfig.prestige.minLevelRequired) return;
-
-    const gain = Formulas.calculatePrestigeGain(s);
-    if (!confirm(`Despertar Ancestral reiniciará seu Nível, Ouro, Atributos, Itens e Esconderijo em troca de +${gain} Essências Ancestrais permanentes. Continuar?`)) {
-      return;
-    }
-
-    s.prestige.count += 1;
-    s.prestige.essence += gain;
-
-    // Reinicia progresso mortal mantendo facção, nome, chefes e melhorias de prestígio
-    s.level = 1;
-    s.xp = 0;
-    s.gold = GameConfig.prestige.startingGoldPerAwakening * s.prestige.count;
-    s.stats = { strength: 5, defense: 5, agility: 5, vitality: 5 };
-    s.equipment = { weapon: null, armor: null, relic: null };
-    s.inventory = [];
-    s.hideout = { crypt: 0, altar: 0, bastion: 0 };
-    s.activity = { type: 'idle', startTime: null, durationSec: 0 };
-
-    const eff = Formulas.getEffectiveStats(s);
-    s.currentHp = Formulas.getCombatProfile(eff, 1).maxHp;
-    s.currentEnergy = Formulas.getMaxEnergy(s);
-    s.shopStock = Generators.generateShopStock(1);
-    s.quests = Generators.generateQuestSet(s);
-
-    this.huntTargets = Generators.generateHuntTargets(1, s.faction);
-    this.currentBoss = Generators.generateBoss(1, s.bossesDefeated);
-
-    StateManager.save();
-    this.render();
-    UI.triggerPulse('ui-avatar');
-    UI.showToast(`✨ Despertar concluído! +${gain} Essências Ancestrais!`);
-  },
-
-  buyPrestigeUpgrade(upgradeId) {
-    const s = StateManager.state;
-    const cfg = GameConfig.prestige.upgrades[upgradeId];
-    const lvl = s.prestige.upgrades[upgradeId] || 0;
-    if (lvl >= cfg.maxLevel) return;
-
-    const cost = Formulas.prestigeUpgradeCost(upgradeId, lvl);
-    if (s.prestige.essence < cost) return;
-
-    s.prestige.essence -= cost;
-    s.prestige.upgrades[upgradeId] = lvl + 1;
-
-    StateManager.save();
-    this.render();
-    UI.showToast(`${cfg.name} evoluído para Nível ${lvl + 1}!`);
-  },
-
-  // --- LOJA & INVENTÁRIO ---
-  buyItem(shopIdx) {
-    const s = StateManager.state;
-    const item = s.shopStock[shopIdx];
-    if (!item || s.gold < item.price) return;
-
-    s.gold -= item.price;
-    if (item.type === 'consumable') {
-      s.inventory.push({ ...item, uid: `cons_${Date.now()}` });
-    } else {
-      s.inventory.push(item);
-      s.shopStock.splice(shopIdx, 1);
-    }
-    StateManager.save();
-    this.render();
-    UI.showToast(`Adquirido: ${item.name}`);
-  },
-
-  refreshShop(paid = false) {
-    const s = StateManager.state;
-    const cost = 25;
-    if (paid) {
-      if (s.gold < cost) return UI.showToast('Ouro insuficiente!');
-      s.gold -= cost;
-    }
-    s.shopStock = Generators.generateShopStock(s.level);
-    StateManager.save();
-    this.render();
-  },
-
-  equipItem(invIdx) {
-    const s = StateManager.state;
-    const item = s.inventory[invIdx];
-    if (!item || item.type !== 'equipment') return;
-
-    const prev = s.equipment[item.slot];
-    s.equipment[item.slot] = item;
-    s.inventory.splice(invIdx, 1);
-    if (prev) s.inventory.push(prev);
-
-    StateManager.save();
-    this.render();
-    UI.triggerPulse('equipped-slots');
-    UI.showToast(`Equipou ${item.name}!`);
-  },
-
-  sellItem(invIdx) {
-    const s = StateManager.state;
-    const item = s.inventory[invIdx];
-    if (!item) return;
-    this.grantGold(item.sellPrice || 10);
-    s.inventory.splice(invIdx, 1);
-    StateManager.save();
-    this.render();
-  },
-
-  useConsumable(invIdx) {
-    const s = StateManager.state;
-    const item = s.inventory[invIdx];
-    if (!item || item.type !== 'consumable') return;
-
-    const eff = Formulas.getEffectiveStats(s);
-    const maxHp = Formulas.getCombatProfile(eff, s.level).maxHp;
-    const maxEnergy = Formulas.getMaxEnergy(s);
-
-    if (item.effect === 'heal_hp') {
-      s.currentHp = Math.min(maxHp, s.currentHp + Math.floor(maxHp * item.amountPct));
-    } else if (item.effect === 'restore_energy') {
-      s.currentEnergy = Math.min(maxEnergy, s.currentEnergy + item.amountFlat);
-    }
-
-    s.inventory.splice(invIdx, 1);
-    StateManager.save();
-    this.render();
-    UI.showToast(`Usou ${item.name}!`);
-  },
-
-  runDiagnostics() {
-    const results = SelfTests.runAll();
-    const box = document.getElementById('diagnostics-output');
-    box.innerHTML = results.map(r =>
-      `<div style="color:${r.passed ? 'var(--success)' : 'var(--danger)'}">
-        ${r.passed ? '✔' : '✖'} ${r.name}
-      </div>`
-    ).join('');
-  },
-
-  resetGame() {
-    if (!confirm('Apagar permanentemente todo o progresso (incluindo Prestígio)?')) return;
-    localStorage.removeItem(GameConfig.storageKey);
-    GameConfig.legacyKeys.forEach(k => localStorage.removeItem(k));
-    location.reload();
   }
-};
 
-window.addEventListener('DOMContentLoaded', () => App.init());
+  function refreshUI(cb = callbacks) {
+    UI.renderAll(cb, huntTargets, currentBoss, calculateWorkAccrued);
+  }
+}
+
+function executeSingleBattle(enemy, isMilestoneBoss = false, isAbyss = false) {
+  const s = StateManager.state;
+  const res = CombatEngine.simulateBattle(s, enemy);
+  s.currentHp = res.remainingHp;
+  s.lifetime.critsLanded += res.critsLanded;
+
+  s.quests.forEach(q => {
+    if (q.type === 'crits') q.progress += res.critsLanded;
+  });
+
+  if (res.won) {
+    s.gold += res.rewardGold;
+    s.lifetime.totalGoldEarned += res.rewardGold;
+    s.lifetime.totalKills += 1;
+    s.materials.scrap += res.rewardScrap;
+    grantXp(res.rewardXp);
+
+    s.quests.forEach(q => {
+      if (q.type === 'kills') q.progress += 1;
+    });
+
+    if (res.droppedItem) s.inventory.push(res.droppedItem);
+
+    if (isMilestoneBoss) {
+      s.bossesDefeated += 1;
+      currentBoss = Generators.generateMilestoneBoss(s.bossesDefeated);
+    }
+
+    if (isAbyss) {
+      if (enemy.speciesId) {
+        s.bestiary[enemy.speciesId] = (s.bestiary[enemy.speciesId] || 0) + 1;
+      }
+      s.abyss.floor += 1;
+      s.abyss.maxFloor = Math.max(s.abyss.maxFloor, s.abyss.floor);
+      s.lifetime.maxAbyssFloor = Math.max(s.lifetime.maxAbyssFloor, s.abyss.maxFloor);
+    }
+  } else {
+    grantXp(res.rewardXp);
+  }
+
+  return res;
+}
+
+function runCombat(enemy, isMilestoneBoss = false, isAbyss = false) {
+  const res = executeSingleBattle(enemy, isMilestoneBoss, isAbyss);
+  UI.renderCombatLog(res.logs);
+  StateManager.save();
+  UI.renderAll(null, huntTargets, currentBoss, calculateWorkAccrued);
+}
+
+function grantXp(amount) {
+  const s = StateManager.state;
+  s.xp += SafeMath.int(amount, 0);
+  let leveled = false;
+  while (s.xp >= Formulas.xpToNextLevel(s.level)) {
+    s.xp -= Formulas.xpToNextLevel(s.level);
+    s.level += 1;
+    leveled = true;
+  }
+  if (leveled) {
+    const profile = Formulas.getCombatProfile(Formulas.getEffectiveStats(s), s.level, s);
+    s.currentHp = profile.maxHp;
+    s.currentEnergy = Formulas.getMaxEnergy(s);
+    huntTargets = Generators.generateHuntTargets(s.level);
+    UI.triggerPulse('ui-name');
+  }
+}
+
+function calculateWorkAccrued(nowMs) {
+  const s = StateManager.state;
+  const elapsedSec = Math.max(0, Math.floor((nowMs - s.activity.startTime) / 1000));
+  const dur = s.activity.durationSec;
+  const effectiveSec = dur > 0 ? Math.min(elapsedSec, dur) : elapsedSec;
+  const rates = Formulas.getWorkHourlyRates(s);
+  const progressPct = dur > 0 ? Math.min(100, (effectiveSec / dur) * 100) : 100;
+
+  return {
+    elapsedSec,
+    effectiveSec,
+    isFinished: dur > 0 && elapsedSec >= dur,
+    progressPct,
+    gold: SafeMath.int((effectiveSec / 3600) * rates.goldPerHour, 0),
+    xp: SafeMath.int((effectiveSec / 3600) * rates.xpPerHour, 0)
+  };
+}
+
+function tickLoop() {
+  const s = StateManager.state;
+  if (!s?.created) return;
+  const now = Date.now();
+  const dtSec = Math.max(0, (now - s.lastTickTime) / 1000);
+  s.lastTickTime = now;
+
+  const profile = Formulas.getCombatProfile(Formulas.getEffectiveStats(s), s.level, s);
+  const maxEnergy = Formulas.getMaxEnergy(s);
+  const regenMult = s.challenges?.completed?.blood_thirst ? 2.0 : 1.0;
+
+  s.currentHp = Math.min(profile.maxHp, s.currentHp + (profile.maxHp * GameConfig.curves.hpRegenPctPerMin * regenMult * (dtSec / 60)));
+  s.currentEnergy = Math.min(maxEnergy, s.currentEnergy + (GameConfig.curves.energyRegenPerMin * (dtSec / 60)));
+
+  const passivePerSec = Formulas.getPassiveGoldPerHour(s) / 3600;
+  if (passivePerSec > 0) {
+    const gained = passivePerSec * dtSec;
+    s.gold += gained;
+    s.lifetime.totalGoldEarned += gained;
+  }
+
+  if (Math.floor(now / 1000) % 10 === 0) {
+    StateManager.save();
+  }
+}
+
+function processOfflineProgress() {
+  const s = StateManager.state;
+  const now = Date.now();
+  const rawElapsedSec = Math.max(0, Math.floor((now - s.lastTickTime) / 1000));
+  s.lastTickTime = now;
+
+  if (rawElapsedSec < 60) return;
+  const offlineSec = Math.min(rawElapsedSec, GameConfig.maxOfflineSeconds);
+  const passiveGold = SafeMath.int((offlineSec / 3600) * Formulas.getPassiveGoldPerHour(s), 0);
+
+  const profile = Formulas.getCombatProfile(Formulas.getEffectiveStats(s), s.level, s);
+  const maxEnergy = Formulas.getMaxEnergy(s);
+  s.currentHp = Math.min(profile.maxHp, s.currentHp + (profile.maxHp * GameConfig.curves.hpRegenPctPerMin * (offlineSec / 60)));
+  s.currentEnergy = Math.min(maxEnergy, s.currentEnergy + (GameConfig.curves.energyRegenPerMin * (offlineSec / 60)));
+
+  if (passiveGold > 0) {
+    s.gold += passiveGold;
+    s.lifetime.totalGoldEarned += passiveGold;
+  }
+
+  const mins = Math.floor(offlineSec / 60);
+  UI.showOfflineModal(
+    `Você esteve ausente por <strong>${mins} min</strong>.<br>` +
+    `Renda passiva da Cripta: <strong>+${SafeMath.formatNumber(passiveGold)} Ouro</strong>.<br>` +
+    `Vitalidade e Energia foram restauradas.`
+  );
+  StateManager.save();
+}
+
+function clampResources() {
+  const s = StateManager.state;
+  const profile = Formulas.getCombatProfile(Formulas.getEffectiveStats(s), s.level, s);
+  s.currentHp = Math.min(profile.maxHp, Math.max(1, Math.floor(s.currentHp)));
+  s.currentEnergy = Math.min(Formulas.getMaxEnergy(s), s.currentEnergy);
+}
+
+function performPrestigeReset(essenceGain, challengeId) {
+  const old = StateManager.state;
+  const fresh = StateManager.createDefaultState(old.name, old.faction);
+  fresh.prestige = {
+    ...old.prestige,
+    count: old.prestige.count + (essenceGain > 0 ? 1 : 0),
+    essence: old.prestige.essence + essenceGain
+  };
+  fresh.gold = 120 + (fresh.prestige.count * GameConfig.prestige.startingGoldPerAwakening);
+  fresh.challenges = {
+    active: challengeId,
+    completed: { ...old.challenges.completed }
+  };
+  fresh.bestiary = { ...old.bestiary };
+  fresh.lifetime = { ...old.lifetime };
+  fresh.followers = old.followers.map(f => ({ ...f, onExpedition: false }));
+
+  StateManager.state = fresh;
+  huntTargets = Generators.generateHuntTargets(1);
+  currentBoss = Generators.generateMilestoneBoss(0);
+  StateManager.save();
+  UI.renderAll(null, huntTargets, currentBoss, calculateWorkAccrued);
+}
+
+init();

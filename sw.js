@@ -1,13 +1,17 @@
-const CACHE_NAME = 'noctis-dominion-v3-cache';
+const CACHE_NAME = 'noctis-dominion-v4-icons-cache';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
   './css/style.css',
+  './css/icons.css',
+  './js/icons.js',
   './js/config.js',
   './js/utils.js',
   './js/formulas.js',
   './js/generators.js',
+  './js/systems.js',
+  './js/abyss.js',
   './js/state.js',
   './js/combat.js',
   './js/tests.js',

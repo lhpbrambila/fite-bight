@@ -6,9 +6,10 @@
   <meta name="theme-color" content="#13131a" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>Noctis Dominion — Idle RPG Gótico</title>
+  <title>Noctis Dominion — Idle RPG Gótico (Fase 4)</title>
   <link rel="manifest" href="./manifest.json" />
   <link rel="stylesheet" href="./css/style.css" />
+  <link rel="stylesheet" href="./css/icons.css" />
 </head>
 <body>
 
@@ -24,13 +25,13 @@
 
     <div class="faction-cards">
       <div id="btn-choose-vampire" class="faction-card vampire">
-        <h3>🩸 Clã Vampírico</h3>
+        <h3><span data-icon="factions.vampire" data-tone="crimson" data-glow="true"></span> Clã Vampírico</h3>
         <p>Aristocratas da noite com drenagem vital e hemorragia arcana.</p>
         <span class="bonus-tag">+15% Ouro Trabalho • +10% Agilidade</span>
       </div>
 
       <div id="btn-choose-werewolf" class="faction-card werewolf">
-        <h3>🐺 Matilha Licantropa</h3>
+        <h3><span data-icon="factions.werewolf" data-tone="amber" data-glow="true"></span> Matilha Licantropa</h3>
         <p>Predadores primordiais com frenesi lunar e garras dilacerantes.</p>
         <span class="bonus-tag">+10% Força • +15% Vitalidade</span>
       </div>
@@ -42,13 +43,15 @@
     <header>
       <div class="header-top">
         <div class="char-identity">
-          <div class="avatar-badge" id="ui-avatar">🩸</div>
+          <div class="avatar-badge" id="ui-avatar"></div>
           <div>
             <div class="char-name" id="ui-name">Iniciado</div>
             <div class="char-meta" id="ui-subtitle">Nvl 1 • Vampiro</div>
           </div>
         </div>
-        <div id="ui-status-badge" style="font-size: 0.72rem; color: var(--text-secondary);">Livre</div>
+        <div id="ui-moon-badge" style="font-size: 0.74rem; background:var(--bg-elevated); padding:4px 8px; border-radius:99px; border:1px solid var(--border-subtle); display:inline-flex; align-items:center; gap:5px;">
+          <span data-icon="moon.new_moon" data-size="sm" data-tone="moon"></span> Lua Nova
+        </div>
       </div>
 
       <div class="resources-grid">
@@ -59,11 +62,13 @@
       </div>
     </header>
 
+    <div id="active-challenge-banner" class="challenge-banner hidden"></div>
+
     <main>
       <!-- ABA 1: HERÓI -->
       <section id="tab-character" class="tab-panel active">
         <div class="card">
-          <div class="card-title"><span>Equipamento Atual</span></div>
+          <div class="card-title"><span>Equipamento & Runas</span></div>
           <div class="equip-slots" id="equipped-slots"></div>
         </div>
 
@@ -76,9 +81,9 @@
         </div>
 
         <div class="card">
-          <div class="card-title"><span>Habilidades de Linhagem</span></div>
-          <div id="ui-skills-list"></div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.8rem; margin-top: 10px;">
+          <div class="card-title"><span>Influência Lunar & Combate</span></div>
+          <div id="ui-moon-detail" style="font-size: 0.76rem; color: var(--text-secondary); margin-bottom: 8px;"></div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.8rem;">
             <div>Dano: <strong id="ui-derived-dmg">0</strong></div>
             <div>Armadura: <strong id="ui-derived-def">0</strong></div>
             <div>Esquiva: <strong id="ui-derived-dodge">0%</strong></div>
@@ -87,158 +92,268 @@
         </div>
       </section>
 
-      <!-- ABA 2: CAÇADA, CHEFE & MISSÕES -->
+      <!-- ABA 2: COMBATE (CAÇADA, ABISMO, BESTIÁRIO, MISSÕES) -->
       <section id="tab-hunt" class="tab-panel">
-        <div class="card" style="border-color: rgba(234, 179, 8, 0.4);">
-          <div class="card-title"><span>👑 Chefe de Marco</span></div>
-          <div id="ui-boss-info" style="margin-bottom: 8px;"></div>
-          <button class="btn btn-primary btn-block" id="btn-fight-boss">Desafiar Chefe</button>
+        <div class="subtabs-4">
+          <button class="btn btn-sm btn-primary" id="subtab-h-hunt"><span data-icon="nav.hunt" data-size="xs"></span> Caça</button>
+          <button class="btn btn-sm" id="subtab-h-abyss"><span data-icon="subtabs.abyss" data-size="xs"></span> Abismo</button>
+          <button class="btn btn-sm" id="subtab-h-bestiary"><span data-icon="subtabs.bestiary" data-size="xs"></span> Bestiário</button>
+          <button class="btn btn-sm" id="subtab-h-quests"><span data-icon="subtabs.quests" data-size="xs"></span> Missões</button>
         </div>
 
-        <div class="card">
-          <div class="card-title">
-            <span>Caçada nas Sombras</span>
-            <span style="font-size: 0.72rem; color: var(--energy);" id="ui-hunt-cost">Custo: 15 ⚡</span>
+        <!-- Subpainel Caçada -->
+        <div id="panel-h-hunt">
+          <div class="card" style="border-color: rgba(234, 179, 8, 0.4); margin-bottom:12px;">
+            <div class="card-title"><span style="display:inline-flex; align-items:center; gap:6px;"><span data-icon="combat.boss" data-size="sm" data-tone="gold"></span> Chefe de Marco</span></div>
+            <div id="ui-boss-info" style="margin-bottom: 8px;"></div>
+            <button class="btn btn-primary btn-block" id="btn-fight-boss">Desafiar Chefe</button>
           </div>
-          <div class="hunt-targets" id="hunt-targets-list"></div>
-          <div class="btn-row">
-            <button class="btn" id="btn-refresh-targets">🔄 Novos Alvos</button>
-            <button class="btn btn-primary" id="btn-auto-hunt">⚡ Auto-Caçada (5x)</button>
+
+          <div class="card">
+            <div class="card-title">
+              <span>Caçada nas Sombras</span>
+              <span style="font-size: 0.72rem; color: var(--energy); display:inline-flex; align-items:center; gap:4px;" id="ui-hunt-cost">Custo: 15 <span data-icon="stats.energy" data-size="xs" data-tone="energy"></span></span>
+            </div>
+            <div class="hunt-targets" id="hunt-targets-list"></div>
+            <div class="btn-row">
+              <button class="btn" id="btn-refresh-targets"><span data-icon="actions.refresh" data-size="sm"></span> Novos Alvos</button>
+              <button class="btn btn-primary" id="btn-auto-hunt"><span data-icon="stats.energy" data-size="sm"></span> Auto-Caçada</button>
+            </div>
           </div>
         </div>
 
-        <div class="card">
+        <!-- Subpainel Abismo -->
+        <div id="panel-h-abyss" style="display:none;">
+          <div class="card" style="border-color: #8b5cf6;">
+            <div class="card-title">
+              <span style="display:inline-flex; align-items:center; gap:6px;"><span data-icon="subtabs.abyss" data-size="sm" data-tone="soul"></span> O Abismo (Infinito)</span>
+              <span style="font-size: 0.74rem; color: #c084fc;" id="ui-abyss-floor">Andar 1</span>
+            </div>
+            <p style="font-size:0.74rem; color:var(--text-secondary); margin-bottom:8px;">
+              Não consome energia. Mini-chefes a cada 10 andares com mecânicas especiais e Sucata Arcana.
+            </p>
+            <div id="ui-abyss-enemy" style="background:var(--bg-elevated); padding:10px; border-radius:8px; margin-bottom:10px;"></div>
+            <button class="btn btn-primary btn-block" id="btn-fight-abyss"><span data-icon="nav.hunt" data-size="sm"></span> Desafiar Andar Atual</button>
+          </div>
+        </div>
+
+        <!-- Subpainel Bestiário -->
+        <div id="panel-h-bestiary" style="display:none;">
+          <div class="card">
+            <div class="card-title"><span style="display:inline-flex; align-items:center; gap:6px;"><span data-icon="subtabs.bestiary" data-size="sm" data-tone="amber"></span> Bestiário Permanente</span></div>
+            <div id="bestiary-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+          </div>
+        </div>
+
+        <!-- Subpainel Missões -->
+        <div id="panel-h-quests" style="display:none;">
+          <div class="card">
+            <div class="card-title"><span style="display:inline-flex; align-items:center; gap:6px;"><span data-icon="subtabs.quests" data-size="sm" data-tone="gold"></span> Missões Ativas</span></div>
+            <div id="quests-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+          </div>
+        </div>
+
+        <!-- Log Tático Compartilhado -->
+        <div class="card" style="margin-top:12px;">
           <div class="card-title"><span>Relatório Tático</span></div>
           <div class="combat-log" id="combat-log">
-            <div style="color: var(--text-muted); text-align: center;">Selecione um alvo para iniciar.</div>
+            <div style="color: var(--text-muted); text-align: center;">Aguardando combate...</div>
           </div>
-        </div>
-
-        <div class="card">
-          <div class="card-title"><span>📜 Missões Ativas</span></div>
-          <div id="quests-list" style="display:flex; flex-direction:column; gap:8px;"></div>
         </div>
       </section>
 
-      <!-- ABA 3: DOMÍNIO (TRABALHO & ESCONDERIJO) -->
+      <!-- ABA 3: DOMÍNIO (TRABALHO/ESCONDERIJO & CLÃ/EXPEDIÇÕES) -->
       <section id="tab-work" class="tab-panel">
-        <div class="card">
-          <div class="card-title">
-            <span>Guarda Noturna (Idle)</span>
-            <span style="font-size: 0.72rem; color: var(--gold);" id="ui-work-rate">+0 Ouro/h</span>
+        <div class="subtabs">
+          <button class="btn btn-primary" id="subtab-d-work"><span data-icon="nav.domain" data-size="sm"></span> Vigília & Sede</button>
+          <button class="btn" id="subtab-d-clan"><span data-icon="subtabs.clan" data-size="sm"></span> Clã & Expedições</button>
+        </div>
+
+        <div id="panel-d-work">
+          <div class="card" style="margin-bottom:12px;">
+            <div class="card-title">
+              <span>Guarda Noturna (Idle)</span>
+              <span style="font-size: 0.72rem; color: var(--gold);" id="ui-work-rate">+0 Ouro/h</span>
+            </div>
+
+            <div id="work-setup-panel">
+              <div class="work-options">
+                <button class="work-option-btn selected" data-hours="1"><strong>1 Hora</strong><span>Turno rápido</span></button>
+                <button class="work-option-btn" data-hours="4"><strong>4 Horas</strong><span>Vigília noturna</span></button>
+                <button class="work-option-btn" data-hours="8"><strong>8 Horas</strong><span>Sono profundo</span></button>
+                <button class="work-option-btn" data-hours="0"><strong>Contínuo (∞)</strong><span>Até coletar</span></button>
+              </div>
+              <button class="btn btn-primary btn-block" id="btn-start-work">Iniciar Trabalho</button>
+            </div>
+
+            <div id="work-active-panel" style="display: none;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.84rem;">
+                <strong id="ui-work-mode-label">Trabalhando...</strong>
+                <span id="ui-work-timer">00:00:00</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill" id="ui-work-progress"></div></div>
+              <div style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 10px;">
+                Acumulado: <strong class="res-gold" id="ui-work-pending-gold">0</strong> Ouro e <strong class="res-xp" id="ui-work-pending-xp">0</strong> XP
+              </div>
+              <button class="btn btn-primary btn-block" id="btn-claim-work">Encerrar e Coletar</button>
+            </div>
           </div>
 
-          <div id="work-setup-panel">
-            <div class="work-options">
-              <button class="work-option-btn selected" data-hours="1"><strong>1 Hora</strong><span>Turno rápido</span></button>
-              <button class="work-option-btn" data-hours="4"><strong>4 Horas</strong><span>Vigília noturna</span></button>
-              <button class="work-option-btn" data-hours="8"><strong>8 Horas</strong><span>Sono profundo</span></button>
-              <button class="work-option-btn" data-hours="0"><strong>Contínuo (∞)</strong><span>Até coletar</span></button>
+          <div class="card">
+            <div class="card-title">
+              <span>Esconderijo (Hideout)</span>
+              <span style="font-size: 0.72rem; color: var(--gold);" id="ui-passive-income">Renda: +0/h</span>
             </div>
-            <button class="btn btn-primary btn-block" id="btn-start-work">Iniciar Trabalho</button>
-          </div>
-
-          <div id="work-active-panel" style="display: none;">
-            <div style="display: flex; justify-content: space-between; font-size: 0.84rem;">
-              <strong id="ui-work-mode-label">Trabalhando...</strong>
-              <span id="ui-work-timer">00:00:00</span>
-            </div>
-            <div class="progress-track"><div class="progress-fill" id="ui-work-progress"></div></div>
-            <div style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 10px;">
-              Acumulado: <strong class="res-gold" id="ui-work-pending-gold">0</strong> Ouro e <strong class="res-xp" id="ui-work-pending-xp">0</strong> XP
-            </div>
-            <button class="btn btn-primary btn-block" id="btn-claim-work">Encerrar e Coletar</button>
+            <div id="hideout-list"></div>
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-title">
-            <span>Esconderijo (Hideout)</span>
-            <span style="font-size: 0.72rem; color: var(--gold);" id="ui-passive-income">Renda: +0/h</span>
+        <!-- Painel Clã & Expedições -->
+        <div id="panel-d-clan" style="display:none;">
+          <div class="card" style="margin-bottom:12px;">
+            <div class="card-title">
+              <span style="display:inline-flex; align-items:center; gap:6px;"><span data-icon="subtabs.clan" data-size="sm" data-tone="crimson"></span> Seguidores do Clã</span>
+              <span style="font-size:0.72rem; color:var(--text-secondary);" id="ui-clan-slots">0/4</span>
+            </div>
+            <button class="btn btn-gold btn-block" id="btn-recruit-follower" style="margin-bottom:10px;">Recrutar Neófito</button>
+            <div id="followers-list" style="display:flex; flex-direction:column; gap:6px;"></div>
           </div>
-          <div id="hideout-list"></div>
+
+          <div class="card">
+            <div class="card-title"><span style="display:inline-flex; align-items:center; gap:6px;"><span data-icon="domain.expedition" data-size="sm" data-tone="amber"></span> Expedições Offline</span></div>
+            <div id="expedition-setup">
+              <div id="expedition-regions" style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;"></div>
+              <div class="subtabs-3">
+                <button class="btn btn-sm exp-dur-btn selected" data-hours="2">2 Horas</button>
+                <button class="btn btn-sm exp-dur-btn" data-hours="8">8 Horas</button>
+                <button class="btn btn-sm exp-dur-btn" data-hours="24">24 Horas</button>
+              </div>
+              <div id="ui-squad-power" style="font-size:0.76rem; color:var(--accent-secondary); margin-bottom:8px;">Esquadrão: 0/3</div>
+              <button class="btn btn-primary btn-block" id="btn-start-expedition">Enviar Esquadrão</button>
+            </div>
+
+            <div id="expedition-active" style="display:none;">
+              <div id="ui-exp-status" style="font-size:0.84rem; margin-bottom:6px;"></div>
+              <div class="progress-track"><div class="progress-fill" id="ui-exp-progress"></div></div>
+              <button class="btn btn-primary btn-block" id="btn-claim-expedition">Coletar Recompensas</button>
+            </div>
+          </div>
         </div>
       </section>
 
-      <!-- ABA 4: PRESTÍGIO ("DESPERTAR ANCESTRAL") -->
+      <!-- ABA 4: PRESTÍGIO & DESAFIOS -->
       <section id="tab-prestige" class="tab-panel">
-        <div class="card" style="border-color: #a855f7;">
-          <div class="card-title">
-            <span>✨ Despertar Ancestral</span>
-            <span style="font-size: 0.75rem; color: #d8b4fe;">Ciclos: <strong id="ui-awaken-count">0</strong></span>
-          </div>
-          <p style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 10px;">
-            Sacrifique seu nível, ouro, atributos, itens e esconderijo para despertar seu sangue antigo e obter <strong>Essências Ancestrais</strong> permanentes.
-          </p>
-          <div style="background: var(--bg-elevated); padding: 10px; border-radius: 8px; margin-bottom: 10px; text-align: center;">
-            Essências Disponíveis: <strong style="color: #d8b4fe; font-size: 1.1rem;" id="ui-essence-count">0</strong> ✨
-          </div>
-          <button class="btn btn-primary btn-block" style="background:#7e22ce; border-color:#9333ea;" id="btn-awaken">
-            Despertar Agora
-          </button>
+        <div class="subtabs">
+          <button class="btn btn-primary" id="subtab-p-awaken"><span data-icon="nav.prestige" data-size="sm"></span> Despertar</button>
+          <button class="btn" id="subtab-p-challenges"><span data-icon="subtabs.challenges" data-size="sm"></span> Desafios</button>
         </div>
 
-        <div class="card">
-          <div class="card-title"><span>Dons Eternos (Permanentes)</span></div>
-          <div id="prestige-upgrades-list"></div>
+        <div id="panel-p-awaken">
+          <div class="card" style="border-color: #a855f7; margin-bottom:12px;">
+            <div class="card-title">
+              <span style="display:inline-flex; align-items:center; gap:6px;"><span data-icon="nav.prestige" data-size="sm" data-tone="soul"></span> Despertar Ancestral</span>
+              <span style="font-size: 0.75rem; color: #d8b4fe;">Ciclos: <strong id="ui-awaken-count">0</strong></span>
+            </div>
+            <div style="background: var(--bg-elevated); padding: 10px; border-radius: 8px; margin-bottom: 10px; text-align: center; display:flex; align-items:center; justify-content:center; gap:6px;">
+              Essências Disponíveis: <strong style="color: #d8b4fe; font-size: 1.1rem;" id="ui-essence-count">0</strong>
+              <span data-icon="currency.essence" data-size="md" data-tone="soul" data-glow="true"></span>
+            </div>
+            <button class="btn btn-primary btn-block" style="background:#7e22ce; border-color:#9333ea;" id="btn-awaken">
+              Despertar Agora
+            </button>
+          </div>
+
+          <div class="card">
+            <div class="card-title"><span>Dons Eternos (Permanentes)</span></div>
+            <div id="prestige-upgrades-list"></div>
+          </div>
+        </div>
+
+        <div id="panel-p-challenges" style="display:none;">
+          <div class="card">
+            <div class="card-title"><span style="display:inline-flex; align-items:center; gap:6px;"><span data-icon="subtabs.challenges" data-size="sm" data-tone="crimson"></span> Desafios de Sangue</span></div>
+            <p style="font-size:0.74rem; color:var(--text-secondary); margin-bottom:8px;">
+              Inicie um novo ciclo sob restrições severas para desbloquear bônus permanentes únicos.
+            </p>
+            <div id="challenges-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+          </div>
         </div>
       </section>
 
-      <!-- ABA 5: MERCADO -->
+      <!-- ABA 5: MERCADO, BOLSA & FORJA -->
       <section id="tab-market" class="tab-panel">
         <div class="card">
           <div class="card-title">
-            <span>Mercado & Mochila</span>
-            <button class="btn btn-sm btn-gold" id="btn-refresh-shop">🔄 Renovar (25 🪙)</button>
+            <span>Mercado, Bolsa & Forja</span>
+            <button class="btn btn-sm btn-gold" id="btn-refresh-shop"><span data-icon="actions.refresh" data-size="xs"></span> Renovar (25 <span data-icon="currency.gold" data-size="xs" data-tone="gold"></span>)</button>
           </div>
-          <div class="subtabs">
-            <button class="btn btn-primary" id="subtab-shop">🛒 Loja</button>
-            <button class="btn" id="subtab-inventory">🎒 Inventário</button>
+          <div class="subtabs-3">
+            <button class="btn btn-sm btn-primary" id="subtab-m-shop"><span data-icon="subtabs.shop" data-size="xs"></span> Loja</button>
+            <button class="btn btn-sm" id="subtab-m-inventory"><span data-icon="subtabs.inventory" data-size="xs"></span> Bolsa</button>
+            <button class="btn btn-sm" id="subtab-m-forge"><span data-icon="nav.market" data-size="xs"></span> Forja/Runas</button>
           </div>
           <div id="market-list"></div>
         </div>
       </section>
 
-      <!-- ABA 6: SAVE & DIAGNÓSTICO -->
+      <!-- ABA 6: ESTATÍSTICAS VITALÍCIAS, CONQUISTAS & SAVE -->
       <section id="tab-settings" class="tab-panel">
-        <div class="card">
-          <div class="card-title"><span>Backup Manual (Base64 / JSON)</span></div>
-          <textarea id="save-data-textarea" class="save-box" placeholder="Código Base64 do seu save..."></textarea>
-          <div class="btn-row">
-            <button class="btn" id="btn-export-save">📤 Exportar</button>
-            <button class="btn btn-primary" id="btn-import-save">📥 Importar</button>
+        <div class="subtabs">
+          <button class="btn btn-primary" id="subtab-s-stats"><span data-icon="nav.settings" data-size="sm"></span> Vitalício</button>
+          <button class="btn" id="subtab-s-backup"><span data-icon="subtabs.backup" data-size="sm"></span> Save & Testes</button>
+        </div>
+
+        <div id="panel-s-stats">
+          <div class="card" style="margin-bottom:12px;">
+            <div class="card-title"><span style="display:inline-flex; align-items:center; gap:6px;"><span data-icon="nav.settings" data-size="sm" data-tone="amber"></span> Estatísticas Vitalícias</span></div>
+            <div id="lifetime-stats-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.78rem;"></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span style="display:inline-flex; align-items:center; gap:6px;"><span data-icon="combat.win" data-size="sm" data-tone="gold"></span> Conquistas Escalonadas</span></div>
+            <div id="achievements-list"></div>
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-title"><span>Validação de Integridade</span></div>
-          <button class="btn btn-block" id="btn-run-tests">🧪 Executar Testes de Fórmulas e Offline</button>
-          <div id="diagnostics-output" style="margin-top: 8px; font-size: 0.76rem; display:flex; flex-direction:column; gap:4px;"></div>
-        </div>
+        <div id="panel-s-backup" style="display:none;">
+          <div class="card" style="margin-bottom:12px;">
+            <div class="card-title"><span>Backup Manual (Base64 / JSON)</span></div>
+            <textarea id="save-data-textarea" class="save-box" placeholder="Código Base64 do seu save..."></textarea>
+            <div class="btn-row">
+              <button class="btn" id="btn-export-save"><span data-icon="actions.export" data-size="sm"></span> Exportar</button>
+              <button class="btn btn-primary" id="btn-import-save"><span data-icon="actions.import" data-size="sm"></span> Importar</button>
+            </div>
+          </div>
 
-        <div class="card">
-          <button class="btn btn-block" style="border-color: var(--danger); color: var(--danger);" id="btn-reset-save">
-            🗑️ Reset Total (Apagar Tudo)
-          </button>
+          <div class="card" style="margin-bottom:12px;">
+            <div class="card-title"><span>Validação de Integridade v4</span></div>
+            <button class="btn btn-block" id="btn-run-tests"><span data-icon="actions.test" data-size="sm"></span> Executar Testes de Fórmulas e Sistemas</button>
+            <div id="diagnostics-output" style="margin-top: 8px; font-size: 0.76rem; display:flex; flex-direction:column; gap:4px;"></div>
+          </div>
+
+          <div class="card">
+            <button class="btn btn-block" style="border-color: var(--danger); color: var(--danger);" id="btn-reset-save">
+              <span data-icon="actions.trash" data-size="sm"></span> Reset Total (Apagar Tudo)
+            </button>
+          </div>
         </div>
       </section>
     </main>
 
-    <!-- NAVEGAÇÃO INFERIOR (6 ABAS COMPACTAS) -->
+    <!-- NAVEGAÇÃO INFERIOR -->
     <nav class="bottom-nav" style="grid-template-columns: repeat(6, 1fr);">
-      <button class="nav-btn active" data-tab="tab-character"><span class="icon">🧛</span><span>Herói</span></button>
-      <button class="nav-btn" data-tab="tab-hunt"><span class="icon">⚔️</span><span>Caçada</span></button>
-      <button class="nav-btn" data-tab="tab-work"><span class="icon">🏰</span><span>Domínio</span></button>
-      <button class="nav-btn" data-tab="tab-prestige"><span class="icon">✨</span><span>Despertar</span></button>
-      <button class="nav-btn" data-tab="tab-market"><span class="icon">🛒</span><span>Loja</span></button>
-      <button class="nav-btn" data-tab="tab-settings"><span class="icon">📜</span><span>Save</span></button>
+      <button class="nav-btn active" data-tab="tab-character"><span class="icon" data-icon="nav.character"></span><span>Herói</span></button>
+      <button class="nav-btn" data-tab="tab-hunt"><span class="icon" data-icon="nav.hunt"></span><span>Combate</span></button>
+      <button class="nav-btn" data-tab="tab-work"><span class="icon" data-icon="nav.domain"></span><span>Domínio</span></button>
+      <button class="nav-btn" data-tab="tab-prestige"><span class="icon" data-icon="nav.prestige"></span><span>Despertar</span></button>
+      <button class="nav-btn" data-tab="tab-market"><span class="icon" data-icon="nav.market"></span><span>Forja</span></button>
+      <button class="nav-btn" data-tab="tab-settings"><span class="icon" data-icon="nav.settings"></span><span>Perfil</span></button>
     </nav>
   </div>
 
   <!-- MODAL OFFLINE -->
   <div id="offline-modal" class="modal-overlay hidden">
     <div class="modal-box">
-      <h3>🌙 Retorno das Sombras</h3>
+      <h3 style="display:flex; align-items:center; gap:8px;"><span data-icon="moon.offline" data-size="md" data-tone="moon" data-glow="true"></span> Retorno das Sombras</h3>
       <p id="offline-modal-text" style="font-size: 0.86rem; color: var(--text-secondary); margin-bottom: 14px;"></p>
       <button class="btn btn-primary btn-block" id="btn-close-modal">Continuar</button>
     </div>

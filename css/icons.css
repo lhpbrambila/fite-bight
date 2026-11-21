@@ -1,0 +1,101 @@
+/* ============================================================================
+   ICONS.CSS — ESTILOS DE ÍCONES GÓTICOS (OFFLINE / MOBILE-FIRST)
+   ============================================================================ */
+:root {
+  --g-icon-xs: 0.85rem;
+  --g-icon-sm: 1.05rem;
+  --g-icon-md: 1.25rem;
+  --g-icon-lg: 1.55rem;
+
+  --g-tone-default: currentColor;
+  --g-tone-muted: var(--text-muted, #66667e);
+  --g-tone-gold: var(--gold, #eab308);
+  --g-tone-hp: var(--hp, #ef4444);
+  --g-tone-xp: var(--xp, #8b5cf6);
+  --g-tone-energy: var(--energy, #06b6d4);
+  --g-tone-soul: #c084fc;
+  --g-tone-moon: #e2e8f0;
+  --g-tone-crimson: #dc2626;
+  --g-tone-amber: #f59e0b;
+
+  --g-glow: var(--accent-glow, rgba(185, 28, 28, 0.45));
+}
+
+.g-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--g-icon-size, var(--g-icon-md));
+  height: var(--g-icon-size, var(--g-icon-md));
+  flex: 0 0 auto;
+  color: var(--g-icon-color, var(--g-tone-default));
+  vertical-align: -0.15em;
+  user-select: none;
+  transition: transform 0.14s ease, filter 0.16s ease, opacity 0.16s ease, color 0.16s ease;
+}
+
+.g-icon__svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+  display: block;
+}
+
+.g-icon__img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* Tamanhos */
+.g-icon--xs { --g-icon-size: var(--g-icon-xs); }
+.g-icon--sm { --g-icon-size: var(--g-icon-sm); }
+.g-icon--md { --g-icon-size: var(--g-icon-md); }
+.g-icon--lg { --g-icon-size: var(--g-icon-lg); }
+
+/* Cores temáticas */
+.g-icon--gold    { --g-icon-color: var(--g-tone-gold); --g-glow: rgba(234, 179, 8, 0.45); }
+.g-icon--hp      { --g-icon-color: var(--g-tone-hp); --g-glow: rgba(239, 68, 68, 0.5); }
+.g-icon--xp      { --g-icon-color: var(--g-tone-xp); --g-glow: rgba(139, 92, 246, 0.45); }
+.g-icon--energy  { --g-icon-color: var(--g-tone-energy); --g-glow: rgba(6, 182, 212, 0.45); }
+.g-icon--soul    { --g-icon-color: var(--g-tone-soul); --g-glow: rgba(192, 132, 252, 0.45); }
+.g-icon--moon    { --g-icon-color: var(--g-tone-moon); --g-glow: rgba(226, 232, 240, 0.4); }
+.g-icon--crimson { --g-icon-color: var(--g-tone-crimson); --g-glow: rgba(220, 38, 38, 0.5); }
+.g-icon--amber   { --g-icon-color: var(--g-tone-amber); --g-glow: rgba(245, 158, 11, 0.45); }
+.g-icon--muted   { --g-icon-color: var(--g-tone-muted); }
+
+/* Brilho / sombra */
+.g-icon--glow {
+  filter: drop-shadow(0 0 6px var(--g-glow));
+}
+
+/* Estados ativo e desativado */
+.g-icon--active {
+  transform: scale(1.08);
+  filter: drop-shadow(0 0 7px var(--g-glow));
+}
+
+.g-icon--disabled {
+  --g-icon-color: var(--g-tone-muted);
+  opacity: 0.42;
+  filter: none;
+}
+
+/* Ajustes contextuais */
+.avatar-badge .g-icon {
+  --g-icon-size: 1.25rem;
+}
+
+.nav-btn .g-icon {
+  --g-icon-size: 1.15rem;
+}
+
+.nav-btn.active .g-icon {
+  transform: scale(1.08);
+  filter: drop-shadow(0 0 6px var(--accent-glow));
+}
+
+.log-entry .g-icon {
+  margin-right: 0.25rem;
+}
