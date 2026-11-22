@@ -1,20 +1,19 @@
-/**
- * ============================================================================
- * STATE.JS — GERENCIAMENTO DE ESTADO, PERSISTÊNCIA LOCAL E EXPORT/IMPORT V4
- * ============================================================================
- */
 import { GameConfig } from './config.js';
 import { Generators } from './generators.js';
 import { SafeMath } from './utils.js';
+import { CloudSync } from './supabase.js';
 
 export const StateManager = {
   state: null,
+  lastCloudSyncAt: null,
+  _cloudTimer: null,
 
   createDefaultState(name = 'Iniciado', faction = 'vampire') {
     const now = Date.now();
     return {
       version: GameConfig.saveVersion,
       created: true,
+      updatedAt: now,
       name: String(name || 'Iniciado').trim().slice(0, 18) || 'Iniciado',
       faction: GameConfig.factions[faction] ? faction : 'vampire',
       level: 1,
@@ -78,7 +77,7 @@ export const StateManager = {
         if (raw) {
           const parsed = JSON.parse(raw);
           this.state = this.migrateAndSanitize(parsed);
-          this.save();
+          this.save(false);
           return true;
         }
       } catch (e) {
@@ -90,13 +89,29 @@ export const StateManager = {
     return false;
   },
 
-  save() {
+  save(syncCloud = true) {
     if (!this.state) return;
+    this.state.updatedAt = Date.now();
     try {
       localStorage.setItem(GameConfig.storageKey, JSON.stringify(this.state));
     } catch (e) {
       console.warn('Falha ao salvar no localStorage:', e);
     }
+    if (syncCloud && CloudSync.user && this.state.created) {
+      this.scheduleCloudSync();
+    }
+  },
+
+  scheduleCloudSync() {
+    clearTimeout(this._cloudTimer);
+    this._cloudTimer = setTimeout(async () => {
+      try {
+        const ts = await CloudSync.pushSave(this.state);
+        if (ts) this.lastCloudSyncAt = ts;
+      } catch (e) {
+        console.warn('Auto-sync Supabase falhou:', e.message);
+      }
+    }, 3000);
   },
 
   migrateAndSanitize(raw) {
@@ -106,6 +121,7 @@ export const StateManager = {
       ...raw,
       version: GameConfig.saveVersion,
       created: raw?.created !== undefined ? Boolean(raw.created) : true,
+      updatedAt: Number(raw?.updatedAt) || Date.now(),
       level: SafeMath.int(raw?.level, 1, 100000),
       xp: SafeMath.int(raw?.xp, 0),
       gold: SafeMath.int(raw?.gold, 0),
@@ -142,7 +158,7 @@ export const StateManager = {
   },
 
   exportBase64() {
-    this.save();
+    this.save(false);
     const json = JSON.stringify(this.state);
     return btoa(unescape(encodeURIComponent(json)));
   },

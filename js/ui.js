@@ -5,6 +5,7 @@ import { AbyssEngine, ABYSS_SPECIES, BESTIARY_MILESTONES } from './abyss.js';
 import { StateManager } from './state.js';
 import { SafeMath } from './utils.js';
 import { iconHTML, hydrateStaticIcons } from './icons.js';
+import { CloudSync } from './supabase.js';
 
 const STAT_META = [
   { key: 'strength',  label: 'Força',      iconKey: 'stats.strength', tone: 'crimson', desc: 'Dano físico e sangramento.' },
@@ -110,6 +111,21 @@ export const UI = {
 
     document.getElementById('btn-refresh-shop').addEventListener('click', () => callbacks.onRefreshShop());
     document.getElementById('btn-awaken').addEventListener('click', () => callbacks.onAwaken());
+
+    // Cloud Sync (Supabase)
+    document.getElementById('btn-cloud-login')?.addEventListener('click', () => {
+      const email = document.getElementById('cloud-email').value.trim();
+      const pass = document.getElementById('cloud-password').value;
+      callbacks.onCloudLogin?.(email, pass);
+    });
+    document.getElementById('btn-cloud-register')?.addEventListener('click', () => {
+      const email = document.getElementById('cloud-email').value.trim();
+      const pass = document.getElementById('cloud-password').value;
+      callbacks.onCloudRegister?.(email, pass);
+    });
+    document.getElementById('btn-cloud-push')?.addEventListener('click', () => callbacks.onCloudPush?.());
+    document.getElementById('btn-cloud-pull')?.addEventListener('click', () => callbacks.onCloudPull?.());
+    document.getElementById('btn-cloud-logout')?.addEventListener('click', () => callbacks.onCloudLogout?.());
 
     document.getElementById('btn-export-save').addEventListener('click', () => {
       const code = StateManager.exportBase64();
@@ -835,6 +851,31 @@ export const UI = {
       document.getElementById(`subtab-s-${sub}`).classList.toggle('btn-primary', this.settingsSubtab === sub);
       document.getElementById(`panel-s-${sub}`).style.display = this.settingsSubtab === sub ? 'block' : 'none';
     });
+
+    // Atualiza UI do Cloud Sync (Supabase)
+    const statusBadge = document.getElementById('ui-cloud-status');
+    const loggedOutBox = document.getElementById('cloud-auth-logged-out');
+    const loggedInBox = document.getElementById('cloud-auth-logged-in');
+    if (statusBadge && loggedOutBox && loggedInBox) {
+      if (!CloudSync.isAvailable()) {
+        statusBadge.textContent = 'Não configurado';
+        statusBadge.style.color = 'var(--text-muted)';
+      } else if (CloudSync.user) {
+        statusBadge.textContent = 'Conectado';
+        statusBadge.style.color = 'var(--success)';
+        loggedOutBox.style.display = 'none';
+        loggedInBox.style.display = 'block';
+        document.getElementById('ui-cloud-user-email').textContent = CloudSync.user.email || 'Jogador';
+        document.getElementById('ui-cloud-last-sync').textContent = StateManager.lastCloudSyncAt
+          ? new Date(StateManager.lastCloudSyncAt).toLocaleTimeString('pt-BR')
+          : 'Sincronizado';
+      } else {
+        statusBadge.textContent = 'Desconectado';
+        statusBadge.style.color = 'var(--accent-secondary)';
+        loggedOutBox.style.display = 'block';
+        loggedInBox.style.display = 'none';
+      }
+    }
 
     const state = StateManager.state;
     const lt = state.lifetime;

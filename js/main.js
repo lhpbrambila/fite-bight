@@ -8,11 +8,12 @@ import { StateManager } from './state.js';
 import { Diagnostics } from './tests.js';
 import { UI } from './ui.js';
 import { SafeMath } from './utils.js';
+import { CloudSync } from './supabase.js';
 
 let huntTargets = [];
 let currentBoss = null;
 
-function init() {
+async function init() {
   const hasSave = StateManager.load();
   const state = StateManager.state;
 
@@ -385,6 +386,78 @@ function init() {
       UI.showToast('Desafio de Sangue concluído! Bônus permanente desbloqueado.');
     },
 
+    // Callbacks Supabase Cloud Sync
+    async onCloudLogin(email, password) {
+      try {
+        await CloudSync.signIn(email, password);
+        UI.showToast('Conectado à nuvem!');
+        const remote = await CloudSync.pullSave();
+        if (remote?.save_data && confirm('Save encontrado na nuvem! Deseja carregar o save da nuvem agora?')) {
+          StateManager.state = StateManager.migrateAndSanitize(remote.save_data);
+          StateManager.lastCloudSyncAt = remote.updated_at;
+          StateManager.save(false);
+          document.getElementById('faction-screen').classList.add('hidden');
+          callbacks.onAfterImport();
+        } else if (StateManager.state.created) {
+          const ts = await CloudSync.pushSave(StateManager.state);
+          StateManager.lastCloudSyncAt = ts;
+        }
+        refreshUI();
+      } catch (e) {
+        UI.showToast(`Erro no login: ${e.message}`);
+      }
+    },
+
+    async onCloudRegister(email, password) {
+      try {
+        await CloudSync.signUp(email, password);
+        UI.showToast('Conta criada! Verifique seu e-mail se a confirmação estiver ativa.');
+        refreshUI();
+      } catch (e) {
+        UI.showToast(`Erro ao cadastrar: ${e.message}`);
+      }
+    },
+
+    async onCloudPush() {
+      try {
+        const ts = await CloudSync.pushSave(StateManager.state);
+        StateManager.lastCloudSyncAt = ts;
+        refreshUI();
+        UI.showToast('Progresso salvo na nuvem!');
+      } catch (e) {
+        UI.showToast(`Erro ao enviar: ${e.message}`);
+      }
+    },
+
+    async onCloudPull() {
+      try {
+        const remote = await CloudSync.pullSave();
+        if (!remote?.save_data) {
+          UI.showToast('Nenhum save encontrado na nuvem.');
+          return;
+        }
+        if (!confirm('Sobrescrever o progresso local pelo save da nuvem?')) return;
+        StateManager.state = StateManager.migrateAndSanitize(remote.save_data);
+        StateManager.lastCloudSyncAt = remote.updated_at;
+        StateManager.save(false);
+        document.getElementById('faction-screen').classList.add('hidden');
+        callbacks.onAfterImport();
+        UI.showToast('Save baixado da nuvem!');
+      } catch (e) {
+        UI.showToast(`Erro ao baixar: ${e.message}`);
+      }
+    },
+
+    async onCloudLogout() {
+      try {
+        await CloudSync.signOut();
+        refreshUI();
+        UI.showToast('Desconectado da nuvem.');
+      } catch (e) {
+        UI.showToast(`Erro ao sair: ${e.message}`);
+      }
+    },
+
     onAfterImport() {
       huntTargets = Generators.generateHuntTargets(StateManager.state.level);
       currentBoss = Generators.generateMilestoneBoss(StateManager.state.bossesDefeated);
@@ -408,6 +481,10 @@ function init() {
   };
 
   UI.bindGlobalEvents(callbacks);
+
+  await CloudSync.init(() => {
+    refreshUI(callbacks);
+  });
 
   if (!hasSave || !state.created) {
     document.getElementById('faction-screen').classList.remove('hidden');

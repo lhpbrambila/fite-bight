@@ -101,7 +101,6 @@
           <button class="btn btn-sm" id="subtab-h-quests"><span data-icon="subtabs.quests" data-size="xs"></span> Missões</button>
         </div>
 
-        <!-- Subpainel Caçada -->
         <div id="panel-h-hunt">
           <div class="card" style="border-color: rgba(234, 179, 8, 0.4); margin-bottom:12px;">
             <div class="card-title"><span style="display:inline-flex; align-items:center; gap:6px;"><span data-icon="combat.boss" data-size="sm" data-tone="gold"></span> Chefe de Marco</span></div>
@@ -122,7 +121,6 @@
           </div>
         </div>
 
-        <!-- Subpainel Abismo -->
         <div id="panel-h-abyss" style="display:none;">
           <div class="card" style="border-color: #8b5cf6;">
             <div class="card-title">
@@ -137,7 +135,6 @@
           </div>
         </div>
 
-        <!-- Subpainel Bestiário -->
         <div id="panel-h-bestiary" style="display:none;">
           <div class="card">
             <div class="card-title"><span style="display:inline-flex; align-items:center; gap:6px;"><span data-icon="subtabs.bestiary" data-size="sm" data-tone="amber"></span> Bestiário Permanente</span></div>
@@ -145,7 +142,6 @@
           </div>
         </div>
 
-        <!-- Subpainel Missões -->
         <div id="panel-h-quests" style="display:none;">
           <div class="card">
             <div class="card-title"><span style="display:inline-flex; align-items:center; gap:6px;"><span data-icon="subtabs.quests" data-size="sm" data-tone="gold"></span> Missões Ativas</span></div>
@@ -153,7 +149,6 @@
           </div>
         </div>
 
-        <!-- Log Tático Compartilhado -->
         <div class="card" style="margin-top:12px;">
           <div class="card-title"><span>Relatório Tático</span></div>
           <div class="combat-log" id="combat-log">
@@ -162,7 +157,7 @@
         </div>
       </section>
 
-      <!-- ABA 3: DOMÍNIO (TRABALHO/ESCONDERIJO & CLÃ/EXPEDIÇÕES) -->
+      <!-- ABA 3: DOMÍNIO -->
       <section id="tab-work" class="tab-panel">
         <div class="subtabs">
           <button class="btn btn-primary" id="subtab-d-work"><span data-icon="nav.domain" data-size="sm"></span> Vigília & Sede</button>
@@ -208,7 +203,6 @@
           </div>
         </div>
 
-        <!-- Painel Clã & Expedições -->
         <div id="panel-d-clan" style="display:none;">
           <div class="card" style="margin-bottom:12px;">
             <div class="card-title">
@@ -315,6 +309,39 @@
         </div>
 
         <div id="panel-s-backup" style="display:none;">
+          <!-- NUVEM SUPABASE -->
+          <div class="card" style="margin-bottom:12px; border-color: rgba(168, 85, 247, 0.45);">
+            <div class="card-title">
+              <span>Nuvem (Supabase Sync)</span>
+              <span id="ui-cloud-status" style="font-size:0.7rem; color:var(--text-secondary);">Offline</span>
+            </div>
+
+            <div id="cloud-auth-logged-out">
+              <div class="input-group" style="margin-bottom:8px;">
+                <input type="email" id="cloud-email" placeholder="E-mail da conta..." />
+              </div>
+              <div class="input-group" style="margin-bottom:8px;">
+                <input type="password" id="cloud-password" placeholder="Senha (mín. 6 caracteres)..." />
+              </div>
+              <div class="btn-row">
+                <button class="btn btn-primary" id="btn-cloud-login">Entrar</button>
+                <button class="btn" id="btn-cloud-register">Criar Conta</button>
+              </div>
+            </div>
+
+            <div id="cloud-auth-logged-in" style="display:none;">
+              <div style="font-size:0.76rem; color:var(--text-secondary); margin-bottom:8px;">
+                Conectado como: <strong id="ui-cloud-user-email" style="color:var(--text-primary);"></strong><br />
+                Última sincronização: <span id="ui-cloud-last-sync">Nunca</span>
+              </div>
+              <div class="btn-row" style="margin-bottom:6px;">
+                <button class="btn btn-primary" id="btn-cloud-push">Enviar para Nuvem</button>
+                <button class="btn" id="btn-cloud-pull">Baixar da Nuvem</button>
+              </div>
+              <button class="btn btn-sm btn-block" id="btn-cloud-logout">Sair da Conta</button>
+            </div>
+          </div>
+
           <div class="card" style="margin-bottom:12px;">
             <div class="card-title"><span>Backup Manual (Base64 / JSON)</span></div>
             <textarea id="save-data-textarea" class="save-box" placeholder="Código Base64 do seu save..."></textarea>
