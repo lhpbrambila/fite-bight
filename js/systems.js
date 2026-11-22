@@ -6,7 +6,7 @@ const FOLLOWER_NAMES = ['Lucian', 'Vespera', 'Kael', 'Morwen', 'Draven', 'Selene
 export const WorldSystems = {
   getCurrentMoonPhase(nowMs = Date.now()) {
     const phases = GameConfig.moonPhases;
-    const sixHoursMs = 6 * 3600 * 1000;
+    const sixHoursMs = 24 * 3600 * 1000;
     const idx = Math.floor(nowMs / sixHoursMs) % phases.length;
     return phases[idx];
   },
