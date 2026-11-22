@@ -1,8 +1,3 @@
-/**
- * ============================================================================
- * SYSTEMS.JS — LUA, FORJA, RUNAS, CLÃ E EXPEDIÇÕES OFFLINE (V4)
- * ============================================================================
- */
 import { GameConfig } from './config.js';
 import { SafeMath } from './utils.js';
 
@@ -90,6 +85,57 @@ export const WorldSystems = {
     const rCfg = GameConfig.rarities[item.rarity] || GameConfig.rarities.common;
     const upgBonus = (item.upgradeLevel || 0) * 4;
     return SafeMath.int(rCfg.scrapYield + upgBonus, 2);
+  },
+
+  getItemOriginalPrice(item) {
+    if (!item) return 0;
+    if (typeof item.price === 'number' && item.price > 0) {
+      return SafeMath.int(item.price, 1);
+    }
+    const rCfg = GameConfig.rarities[item.rarity] || GameConfig.rarities.common;
+    const lvl = Math.max(1, SafeMath.int(item.level || 1, 1));
+    const upg = Math.max(0, SafeMath.int(item.upgradeLevel || 0, 0));
+    const baseVal = (25 + lvl * 18) * (rCfg.mult || 1) * (1 + upg * 0.25);
+    return SafeMath.int(baseVal, 10);
+  },
+
+  getItemSellValue(item) {
+    if (!item) return 0;
+    const original = this.getItemOriginalPrice(item);
+    return Math.max(1, Math.floor(original * 0.5));
+  },
+
+  getItemEffectiveStats(item) {
+    const totals = { strength: 0, defense: 0, agility: 0, vitality: 0 };
+    if (!item || !item.stats) return totals;
+    const upgMult = 1 + ((item.upgradeLevel || 0) * 0.15);
+    Object.keys(totals).forEach(k => {
+      const baseStat = item.stats[k] || 0;
+      totals[k] = baseStat > 0 ? SafeMath.int(baseStat * upgMult, 1) : 0;
+    });
+    return totals;
+  },
+
+  compareItemWithEquipped(candidateItem, equippedItem) {
+    const statKeys = ['strength', 'defense', 'agility', 'vitality'];
+    const candStats = this.getItemEffectiveStats(candidateItem);
+    const eqStats = equippedItem ? this.getItemEffectiveStats(equippedItem) : { strength: 0, defense: 0, agility: 0, vitality: 0 };
+
+    const deltas = {};
+    let totalScoreDelta = 0;
+
+    statKeys.forEach(k => {
+      const diff = candStats[k] - eqStats[k];
+      deltas[k] = diff;
+      totalScoreDelta += diff;
+    });
+
+    return {
+      hasEquipped: Boolean(equippedItem),
+      equippedItem,
+      deltas,
+      totalScoreDelta
+    };
   },
 
   getForgeUpgradeCost(item, state) {

@@ -1,8 +1,3 @@
-/**
- * ============================================================================
- * UI.JS — RENDERIZAÇÃO MOBILE REFINADA (FASE 4: ÍCONES SVG CENTRALIZADOS)
- * ============================================================================
- */
 import { GameConfig } from './config.js';
 import { Formulas } from './formulas.js';
 import { WorldSystems } from './systems.js';
@@ -19,6 +14,7 @@ const STAT_META = [
 ];
 
 const SLOT_NAMES = { weapon: 'Arma', armor: 'Armadura', relic: 'Relíquia' };
+const STAT_SHORT = { strength: 'FOR', defense: 'DEF', agility: 'AGI', vitality: 'VIT' };
 
 export const UI = {
   selectedWorkHours: 1,
@@ -26,18 +22,17 @@ export const UI = {
   selectedExpRegion: 'catacombs',
   selectedSquad: new Set(),
 
-  huntSubtab: 'hunt',       // 'hunt' | 'abyss' | 'bestiary' | 'quests'
-  domainSubtab: 'work',     // 'work' | 'clan'
-  marketSubtab: 'shop',     // 'shop' | 'inventory' | 'forge'
-  prestigeSubtab: 'awaken', // 'awaken' | 'challenges'
-  settingsSubtab: 'stats',  // 'stats' | 'backup'
+  huntSubtab: 'hunt',
+  domainSubtab: 'work',
+  marketSubtab: 'shop',
+  prestigeSubtab: 'awaken',
+  settingsSubtab: 'stats',
 
   _toastTimer: null,
 
   bindGlobalEvents(callbacks) {
     hydrateStaticIcons(document);
 
-    // Navegação principal
     document.querySelectorAll('.nav-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -47,11 +42,9 @@ export const UI = {
       });
     });
 
-    // Criação
     document.getElementById('btn-choose-vampire').addEventListener('click', () => callbacks.onCreateChar('vampire'));
     document.getElementById('btn-choose-werewolf').addEventListener('click', () => callbacks.onCreateChar('werewolf'));
 
-    // Sub-abas Caçada / Abismo / Bestiário / Missões
     ['hunt', 'abyss', 'bestiary', 'quests'].forEach(sub => {
       document.getElementById(`subtab-h-${sub}`).addEventListener('click', () => {
         this.huntSubtab = sub;
@@ -59,7 +52,6 @@ export const UI = {
       });
     });
 
-    // Sub-abas Domínio (Trabalho / Clã)
     ['work', 'clan'].forEach(sub => {
       document.getElementById(`subtab-d-${sub}`).addEventListener('click', () => {
         this.domainSubtab = sub;
@@ -67,7 +59,6 @@ export const UI = {
       });
     });
 
-    // Sub-abas Mercado (Loja / Inventário / Forja)
     ['shop', 'inventory', 'forge'].forEach(sub => {
       document.getElementById(`subtab-m-${sub}`).addEventListener('click', () => {
         this.marketSubtab = sub;
@@ -75,7 +66,6 @@ export const UI = {
       });
     });
 
-    // Sub-abas Prestígio (Despertar / Desafios)
     ['awaken', 'challenges'].forEach(sub => {
       document.getElementById(`subtab-p-${sub}`).addEventListener('click', () => {
         this.prestigeSubtab = sub;
@@ -83,7 +73,6 @@ export const UI = {
       });
     });
 
-    // Sub-abas Perfil/Save (Estatísticas / Backup)
     ['stats', 'backup'].forEach(sub => {
       document.getElementById(`subtab-s-${sub}`).addEventListener('click', () => {
         this.settingsSubtab = sub;
@@ -91,7 +80,6 @@ export const UI = {
       });
     });
 
-    // Trabalho
     document.querySelectorAll('.work-option-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         this.selectedWorkHours = Number(btn.dataset.hours);
@@ -102,7 +90,6 @@ export const UI = {
     document.getElementById('btn-start-work').addEventListener('click', () => callbacks.onStartWork(this.selectedWorkHours));
     document.getElementById('btn-claim-work').addEventListener('click', () => callbacks.onClaimWork());
 
-    // Clã & Expedições
     document.getElementById('btn-recruit-follower').addEventListener('click', () => callbacks.onRecruitFollower());
     document.querySelectorAll('.exp-dur-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -116,23 +103,20 @@ export const UI = {
     });
     document.getElementById('btn-claim-expedition').addEventListener('click', () => callbacks.onClaimExpedition());
 
-    // Caçada, Chefe & Abismo
     document.getElementById('btn-refresh-targets').addEventListener('click', () => callbacks.onRefreshTargets());
     document.getElementById('btn-auto-hunt').addEventListener('click', () => callbacks.onAutoHunt());
     document.getElementById('btn-fight-boss').addEventListener('click', () => callbacks.onFightBoss());
     document.getElementById('btn-fight-abyss').addEventListener('click', () => callbacks.onFightAbyss());
 
-    // Loja & Prestígio
     document.getElementById('btn-refresh-shop').addEventListener('click', () => callbacks.onRefreshShop());
     document.getElementById('btn-awaken').addEventListener('click', () => callbacks.onAwaken());
 
-    // Save & Testes
     document.getElementById('btn-export-save').addEventListener('click', () => {
       const code = StateManager.exportBase64();
       const box = document.getElementById('save-data-textarea');
       box.value = code;
       box.select();
-      this.showToast('Save v4 exportado!');
+      this.showToast('Save v4.1 exportado!');
     });
     document.getElementById('btn-import-save').addEventListener('click', () => {
       try {
@@ -167,6 +151,8 @@ export const UI = {
     this._lastHuntTargets = huntTargets;
     this._lastBoss = currentBoss;
     this._calcWorkFn = calcWorkFn;
+    if (callbacks) this._lastCallbacks = callbacks;
+    const cb = callbacks || this._lastCallbacks;
 
     const state = StateManager.state;
     const f = GameConfig.factions[state.faction];
@@ -175,7 +161,6 @@ export const UI = {
     const maxEnergy = Formulas.getMaxEnergy(state);
     const moon = WorldSystems.getCurrentMoonPhase();
 
-    // Cabeçalho & Fase da Lua
     const factionTone = state.faction === 'werewolf' ? 'amber' : 'crimson';
     document.getElementById('ui-avatar').innerHTML = iconHTML(f.iconKey || `factions.${state.faction}`, { size: 'md', tone: factionTone, glow: true });
     document.getElementById('ui-name').textContent = state.name;
@@ -192,13 +177,11 @@ export const UI = {
     moonBadge.innerHTML = `${iconHTML(moon.iconKey || `moon.${moon.id}`, { size: 'sm', tone: 'moon', glow: moon.id === 'full_moon' })} <span>${moon.name}</span>`;
     moonBadge.title = moon.desc;
 
-    // Recursos
     document.getElementById('ui-gold').textContent = SafeMath.formatNumber(state.gold);
     document.getElementById('ui-xp').textContent = `${SafeMath.formatNumber(state.xp)}/${SafeMath.formatNumber(Formulas.xpToNextLevel(state.level))}`;
     document.getElementById('ui-hp').textContent = `${SafeMath.formatNumber(state.currentHp)}/${SafeMath.formatNumber(combat.maxHp)}`;
     document.getElementById('ui-energy').textContent = `${Math.floor(state.currentEnergy)}/${maxEnergy}`;
 
-    // Banner de Desafio Ativo (se houver)
     const chalBanner = document.getElementById('active-challenge-banner');
     if (state.challenges?.active) {
       const ch = GameConfig.prestige.challenges[state.challenges.active];
@@ -208,13 +191,12 @@ export const UI = {
       chalBanner.classList.add('hidden');
     }
 
-    // Abas
-    this.renderHeroTab(callbacks, effStats, combat);
-    this.renderHuntSection(callbacks);
-    this.renderDomainSection(callbacks);
-    this.renderPrestigeSection(callbacks);
-    this.renderMarketSection(callbacks);
-    this.renderSettingsSection(callbacks);
+    this.renderHeroTab(cb, effStats, combat);
+    this.renderHuntSection(cb);
+    this.renderDomainSection(cb);
+    this.renderPrestigeSection(cb);
+    this.renderMarketSection(cb);
+    this.renderSettingsSection(cb);
   },
 
   renderHeroTab(callbacks, effStats, combat) {
@@ -223,7 +205,9 @@ export const UI = {
     const isBareHands = state.challenges?.active === 'bare_hands';
 
     const equipContainer = document.getElementById('equipped-slots');
-    equipContainer.innerHTML = ['weapon', 'armor', 'relic'].map(slot => {
+    equipContainer.innerHTML = '';
+
+    ['weapon', 'armor', 'relic'].forEach(slot => {
       const locked = isBareHands && (slot === 'weapon' || slot === 'relic');
       const item = state.equipment[slot];
       const upgTag = item && item.upgradeLevel > 0 ? ` +${item.upgradeLevel}` : '';
@@ -232,18 +216,35 @@ export const UI = {
         return rMeta ? iconHTML(rMeta.iconKey, { size: 'xs', tone: 'soul' }) : '';
       }).join('') || '';
       const itemIconKey = item?.iconKey || `items.${slot}`;
+      const effItemStats = item ? WorldSystems.getItemEffectiveStats(item) : null;
 
-      return `
-        <div class="equip-slot-box" style="${locked ? 'opacity:0.45; border-color:var(--danger);' : ''}">
+      const box = document.createElement('div');
+      box.className = 'equip-slot-box';
+      if (locked) {
+        box.style.opacity = '0.45';
+        box.style.borderColor = 'var(--danger)';
+      }
+
+      if (item) {
+        box.innerHTML = `
+          <div class="equip-slot-label">${SLOT_NAMES[slot]}</div>
+          <div class="rarity-${item.rarity}" style="font-weight:700; font-size:0.78rem;">${iconHTML(itemIconKey, { size: 'sm', active: true })} ${item.name}${upgTag}</div>
+          <div style="font-size:0.65rem; color:var(--text-secondary); margin-top:2px;">${this.formatStatsInline(effItemStats)} ${runeIcons}</div>
+          <button class="btn btn-sm" data-unequip="${slot}" style="margin-top:6px; width:100%; padding:3px 6px; font-size:0.68rem;">Tirar</button>
+        `;
+        box.querySelector('[data-unequip]').addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          callbacks?.onUnequipItem?.(slot);
+        });
+      } else {
+        box.innerHTML = `
           <div class="equip-slot-label">${SLOT_NAMES[slot]} ${locked ? iconHTML('actions.lock', { size: 'xs', tone: 'crimson' }) : ''}</div>
-          ${item
-            ? `<div class="rarity-${item.rarity}" style="font-weight:700;">${iconHTML(itemIconKey, { size: 'sm', active: true })} ${item.name}${upgTag}</div>
-               <div style="font-size:0.65rem; color:var(--text-secondary); margin-top:2px;">${this.formatStatsInline(item.stats)} ${runeIcons}</div>`
-            : `<div style="color:var(--text-muted);">${locked ? 'Bloqueado' : 'Vazio'}</div>`
-          }
-        </div>
-      `;
-    }).join('');
+          <div style="color:var(--text-muted); font-size:0.74rem; margin-top:4px;">${locked ? 'Bloqueado' : 'Vazio'}</div>
+        `;
+      }
+
+      equipContainer.appendChild(box);
+    });
 
     document.getElementById('ui-faction-bonus').textContent = f.bonusDesc;
     const statsList = document.getElementById('stats-list');
@@ -269,7 +270,7 @@ export const UI = {
           +1 (${SafeMath.formatNumber(cost)} ${iconHTML('currency.gold', { size: 'xs', tone: 'gold', disabled: !canBuy })})
         </button>
       `;
-      row.querySelector('button').addEventListener('click', () => callbacks.onUpgradeStat(meta.key));
+      row.querySelector('button').addEventListener('click', () => callbacks?.onUpgradeStat?.(meta.key));
       statsList.appendChild(row);
     });
 
@@ -281,7 +282,6 @@ export const UI = {
     document.getElementById('ui-derived-crit').textContent = `${(combat.critChance * 100).toFixed(1)}% (${(combat.critDamageMult * 100).toFixed(0)}%)`;
   },
 
-  // --- ABA 2: CAÇADA, ABISMO, BESTIÁRIO & MISSÕES ---
   renderHuntSection(callbacks) {
     ['hunt', 'abyss', 'bestiary', 'quests'].forEach(sub => {
       document.getElementById(`subtab-h-${sub}`).classList.toggle('btn-primary', this.huntSubtab === sub);
@@ -292,7 +292,6 @@ export const UI = {
     const targets = this._lastHuntTargets || [];
     const boss = this._lastBoss;
 
-    // 1. Caçada & Chefe
     const cost = GameConfig.curves.huntEnergyCost;
     document.getElementById('ui-hunt-cost').innerHTML = `Custo: ${cost} ${iconHTML('stats.energy', { size: 'xs', tone: 'energy' })}`;
     const list = document.getElementById('hunt-targets-list');
@@ -310,7 +309,7 @@ export const UI = {
         </div>
         <button class="btn btn-primary btn-sm" ${!canHunt ? 'disabled' : ''}>${iconHTML('nav.hunt', { size: 'xs', disabled: !canHunt })} Caçar</button>
       `;
-      card.querySelector('button').addEventListener('click', () => callbacks.onHuntTarget(t));
+      card.querySelector('button').addEventListener('click', () => callbacks?.onHuntTarget?.(t));
       list.appendChild(card);
     });
 
@@ -331,7 +330,6 @@ export const UI = {
         : `${iconHTML('combat.boss', { size: 'sm', tone: 'gold', disabled: !canChallenge })} Desafiar Chefe (${bossCost} ${iconHTML('stats.energy', { size: 'xs', tone: 'energy' })})`;
     }
 
-    // 2. Abismo (Masmorra Infinita)
     const abyssEnemy = AbyssEngine.generateFloorEnemy(state.abyss.floor);
     document.getElementById('ui-abyss-floor').textContent = `Andar ${state.abyss.floor} (Recorde: ${state.abyss.maxFloor})`;
     document.getElementById('ui-abyss-enemy').innerHTML = `
@@ -344,7 +342,6 @@ export const UI = {
       ${abyssEnemy.mechanic ? `<div style="font-size:0.74rem; color:#fb7185; margin-top:4px;">${iconHTML('combat.warning', { size: 'xs', tone: 'amber' })} ${abyssEnemy.mechanic.name}: ${abyssEnemy.mechanic.desc}</div>` : ''}
     `;
 
-    // 3. Bestiário
     const bestiaryList = document.getElementById('bestiary-list');
     bestiaryList.innerHTML = ABYSS_SPECIES.map(sp => {
       const kills = state.bestiary[sp.id] || 0;
@@ -363,7 +360,6 @@ export const UI = {
       `;
     }).join('');
 
-    // 4. Missões
     const qList = document.getElementById('quests-list');
     qList.innerHTML = '';
     state.quests.forEach((q, idx) => {
@@ -385,12 +381,11 @@ export const UI = {
           <button class="btn btn-sm ${done ? 'btn-primary' : ''}" ${!done ? 'disabled' : ''}>${done ? 'Coletar' : `${pct}%`}</button>
         </div>
       `;
-      row.querySelector('button').addEventListener('click', () => callbacks.onClaimQuest(idx));
+      row.querySelector('button').addEventListener('click', () => callbacks?.onClaimQuest?.(idx));
       qList.appendChild(row);
     });
   },
 
-  // --- ABA 3: DOMÍNIO (TRABALHO & CLÃ/EXPEDIÇÕES) ---
   renderDomainSection(callbacks) {
     ['work', 'clan'].forEach(sub => {
       document.getElementById(`subtab-d-${sub}`).classList.toggle('btn-primary', this.domainSubtab === sub);
@@ -400,7 +395,6 @@ export const UI = {
     const state = StateManager.state;
     this.updateWorkPanel(this._calcWorkFn);
 
-    // Esconderijo
     const hContainer = document.getElementById('hideout-list');
     hContainer.innerHTML = '';
     document.getElementById('ui-passive-income').textContent = `Renda: +${SafeMath.formatNumber(Formulas.getPassiveGoldPerHour(state))} Ouro/h`;
@@ -419,11 +413,10 @@ export const UI = {
         </div>
         <button class="btn btn-gold btn-sm" ${disabled ? 'disabled' : ''}>${isMax ? 'MÁX' : `${SafeMath.formatNumber(cost)} ${iconHTML('currency.gold', { size: 'xs', tone: 'gold', disabled })}`}</button>
       `;
-      row.querySelector('button').addEventListener('click', () => callbacks.onUpgradeHideout(b.id));
+      row.querySelector('button').addEventListener('click', () => callbacks?.onUpgradeHideout?.(b.id));
       hContainer.appendChild(row);
     });
 
-    // Clã & Expedições
     const maxSlots = WorldSystems.getMaxClanSlots(state);
     const recruitCost = WorldSystems.getRecruitCost(state.followers.length);
     document.getElementById('ui-clan-slots').textContent = `${state.followers.length}/${maxSlots} Seguidores`;
@@ -434,7 +427,6 @@ export const UI = {
       ? 'Clã Cheio'
       : `Recrutar (${SafeMath.formatNumber(recruitCost)} ${iconHTML('currency.gold', { size: 'xs', tone: 'gold', disabled: recDisabled })})`;
 
-    // Lista de seguidores selecionáveis para esquadrão
     const fList = document.getElementById('followers-list');
     fList.innerHTML = '';
     if (state.followers.length === 0) {
@@ -467,7 +459,6 @@ export const UI = {
       });
     }
 
-    // Painel de Expedição Ativa ou Setup
     const expSetup = document.getElementById('expedition-setup');
     const expActive = document.getElementById('expedition-active');
     if (state.expedition) {
@@ -536,7 +527,6 @@ export const UI = {
     }
   },
 
-  // --- ABA 4: PRESTÍGIO & DESAFIOS ---
   renderPrestigeSection(callbacks) {
     ['awaken', 'challenges'].forEach(sub => {
       document.getElementById(`subtab-p-${sub}`).classList.toggle('btn-primary', this.prestigeSubtab === sub);
@@ -575,11 +565,10 @@ export const UI = {
           ${isMax ? 'MÁX' : `${cost} ${iconHTML('currency.essence', { size: 'xs', tone: 'soul', disabled })}`}
         </button>
       `;
-      row.querySelector('button').addEventListener('click', () => callbacks.onBuyPrestigeUpgrade(u.id));
+      row.querySelector('button').addEventListener('click', () => callbacks?.onBuyPrestigeUpgrade?.(u.id));
       list.appendChild(row);
     });
 
-    // Lista de Desafios
     const cList = document.getElementById('challenges-list');
     cList.innerHTML = '';
     Object.values(GameConfig.prestige.challenges).forEach(ch => {
@@ -605,14 +594,13 @@ export const UI = {
         </button>
       `;
       card.querySelector('button').addEventListener('click', () => {
-        if (goalMet) callbacks.onCompleteChallenge();
-        else callbacks.onStartChallenge(ch.id);
+        if (goalMet) callbacks?.onCompleteChallenge?.();
+        else callbacks?.onStartChallenge?.(ch.id);
       });
       cList.appendChild(card);
     });
   },
 
-  // --- ABA 5: MERCADO (LOJA, INVENTÁRIO & FORJA/RUNAS) ---
   renderMarketSection(callbacks) {
     ['shop', 'inventory', 'forge'].forEach(sub => {
       document.getElementById(`subtab-m-${sub}`).classList.toggle('btn-primary', this.marketSubtab === sub);
@@ -632,21 +620,48 @@ export const UI = {
 
         if (item.type === 'consumable') {
           el.innerHTML = `
-            <div><strong style="font-size:0.84rem;">${iconHTML(itemIconKey, { size: 'sm', tone: 'hp' })} ${item.name}</strong><p style="font-size:0.71rem; color:var(--text-secondary);">${item.desc}</p></div>
+            <div>
+              <strong style="font-size:0.84rem;">${iconHTML(itemIconKey, { size: 'sm', tone: 'hp' })} ${item.name}</strong>
+              <p style="font-size:0.71rem; color:var(--text-secondary);">${item.desc}</p>
+            </div>
             <button class="btn btn-gold btn-sm" ${disabled ? 'disabled' : ''}>${SafeMath.formatNumber(item.price)} ${iconHTML('currency.gold', { size: 'xs', tone: 'gold', disabled })}</button>
           `;
         } else {
+          const effStats = WorldSystems.getItemEffectiveStats(item);
+          const equipped = state.equipment[item.slot];
+          const cmpHtml = this.formatItemComparisonHTML(item, equipped);
+
           el.innerHTML = `
-            <div>
+            <div style="flex:1; padding-right:8px;">
               <strong class="rarity-${item.rarity}" style="font-size:0.84rem;">${iconHTML(itemIconKey, { size: 'sm' })} ${item.name} [${SLOT_NAMES[item.slot]}]</strong>
-              <div style="font-size:0.71rem; color:var(--text-secondary);">${this.formatStatsInline(item.stats)}</div>
+              <div style="font-size:0.71rem; color:var(--text-secondary);">${this.formatStatsInline(effStats)}</div>
+              ${cmpHtml}
             </div>
             <button class="btn btn-gold btn-sm" ${disabled ? 'disabled' : ''}>${SafeMath.formatNumber(item.price)} ${iconHTML('currency.gold', { size: 'xs', tone: 'gold', disabled })}</button>
           `;
         }
-        el.querySelector('button').addEventListener('click', () => callbacks.onBuyItem(idx));
+        el.querySelector('button').addEventListener('click', () => callbacks?.onBuyItem?.(idx));
         list.appendChild(el);
       });
+
+      const sellHeader = document.createElement('div');
+      sellHeader.style.cssText = 'margin-top:14px; padding-top:10px; border-top:1px solid var(--border-subtle); font-size:0.8rem; font-weight:700; display:flex; justify-content:space-between; align-items:center;';
+      sellHeader.innerHTML = `
+        <span>Vender Itens da Bolsa</span>
+        <span style="font-size:0.7rem; color:var(--text-secondary);">50% do valor original</span>
+      `;
+      list.appendChild(sellHeader);
+
+      if (state.inventory.length === 0) {
+        const emptySell = document.createElement('p');
+        emptySell.style.cssText = 'text-align:center; color:var(--text-muted); font-size:0.75rem; padding:8px 0;';
+        emptySell.textContent = 'Nenhum item na bolsa para vender.';
+        list.appendChild(emptySell);
+      } else {
+        state.inventory.forEach((item, idx) => {
+          list.appendChild(this.createSellableInventoryCard(item, idx, callbacks));
+        });
+      }
     } else if (this.marketSubtab === 'inventory') {
       if (state.inventory.length === 0) {
         list.innerHTML = `<p style="text-align:center; color:var(--text-muted); font-size:0.78rem; padding:12px;">Inventário vazio.</p>`;
@@ -656,33 +671,47 @@ export const UI = {
         const el = document.createElement('div');
         el.className = 'item-card';
         const itemIconKey = item.iconKey || (item.type === 'consumable' ? 'items.potionSmall' : `items.${item.slot}`);
+        const sellVal = WorldSystems.getItemSellValue(item);
 
         if (item.type === 'consumable') {
           el.innerHTML = `
-            <div><strong style="font-size:0.84rem;">${iconHTML(itemIconKey, { size: 'sm', tone: 'hp' })} ${item.name}</strong><p style="font-size:0.71rem; color:var(--text-secondary);">${item.desc}</p></div>
-            <button class="btn btn-primary btn-sm">Usar</button>
+            <div style="flex:1; padding-right:8px;">
+              <strong style="font-size:0.84rem;">${iconHTML(itemIconKey, { size: 'sm', tone: 'hp' })} ${item.name}</strong>
+              <p style="font-size:0.71rem; color:var(--text-secondary);">${item.desc}</p>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <button class="btn btn-primary btn-sm" data-act="use">Usar</button>
+              <button class="btn btn-sm" data-act="sell">Vender +${SafeMath.formatNumber(sellVal)} ${iconHTML('currency.gold', { size: 'xs', tone: 'gold' })}</button>
+            </div>
           `;
-          el.querySelector('button').addEventListener('click', () => callbacks.onUseConsumable(idx));
+          el.querySelector('[data-act="use"]').addEventListener('click', () => callbacks?.onUseConsumable?.(idx));
+          el.querySelector('[data-act="sell"]').addEventListener('click', () => callbacks?.onSellItem?.(idx));
         } else {
           const scrapVal = WorldSystems.getSalvageValue(item);
           const upgTag = item.upgradeLevel > 0 ? ` +${item.upgradeLevel}` : '';
+          const effStats = WorldSystems.getItemEffectiveStats(item);
+          const equipped = state.equipment[item.slot];
+          const cmpHtml = this.formatItemComparisonHTML(item, equipped);
+
           el.innerHTML = `
-            <div>
+            <div style="flex:1; padding-right:8px;">
               <strong class="rarity-${item.rarity}" style="font-size:0.84rem;">${iconHTML(itemIconKey, { size: 'sm' })} ${item.name}${upgTag} [${SLOT_NAMES[item.slot]}]</strong>
-              <div style="font-size:0.71rem; color:var(--text-secondary);">${this.formatStatsInline(item.stats)}</div>
+              <div style="font-size:0.71rem; color:var(--text-secondary);">${this.formatStatsInline(effStats)}</div>
+              ${cmpHtml}
             </div>
             <div style="display:flex; flex-direction:column; gap:4px;">
               <button class="btn btn-primary btn-sm" data-act="equip">Equipar</button>
+              <button class="btn btn-sm" data-act="sell">Vender +${SafeMath.formatNumber(sellVal)} ${iconHTML('currency.gold', { size: 'xs', tone: 'gold' })}</button>
               <button class="btn btn-sm" data-act="salvage">${iconHTML('actions.salvage', { size: 'xs' })} +${scrapVal} ${iconHTML('currency.scrap', { size: 'xs', tone: 'amber' })}</button>
             </div>
           `;
-          el.querySelector('[data-act="equip"]').addEventListener('click', () => callbacks.onEquipItem(idx));
-          el.querySelector('[data-act="salvage"]').addEventListener('click', () => callbacks.onSalvageItem(idx));
+          el.querySelector('[data-act="equip"]').addEventListener('click', () => callbacks?.onEquipItem?.(idx));
+          el.querySelector('[data-act="sell"]').addEventListener('click', () => callbacks?.onSellItem?.(idx));
+          el.querySelector('[data-act="salvage"]').addEventListener('click', () => callbacks?.onSalvageItem?.(idx));
         }
         list.appendChild(el);
       });
     } else {
-      // FORJA, ENCANTAMENTOS & RUNAS
       list.innerHTML = `
         <div style="background:var(--bg-elevated); padding:8px 10px; border-radius:8px; margin-bottom:10px; display:flex; justify-content:space-between; font-size:0.8rem;">
           <span>${iconHTML('currency.scrap', { size: 'sm', tone: 'amber' })} Sucata Arcana: <strong>${SafeMath.formatNumber(state.materials.scrap)}</strong></span>
@@ -732,18 +761,17 @@ export const UI = {
           <div style="display:flex; flex-wrap:wrap; gap:4px;">${runesHtml}</div>
         `;
 
-        card.querySelector('[data-upg]').addEventListener('click', () => callbacks.onForgeUpgrade(slot));
+        card.querySelector('[data-upg]').addEventListener('click', () => callbacks?.onForgeUpgrade?.(slot));
         card.querySelectorAll('[data-add-rune]').forEach(btn => {
-          btn.addEventListener('click', () => callbacks.onSocketRune(slot));
+          btn.addEventListener('click', () => callbacks?.onSocketRune?.(slot));
         });
         card.querySelectorAll('[data-rem-rune]').forEach(btn => {
-          btn.addEventListener('click', () => callbacks.onUnsocketRune(slot, Number(btn.dataset.remRune)));
+          btn.addEventListener('click', () => callbacks?.onUnsocketRune?.(slot, Number(btn.dataset.remRune)));
         });
 
         list.appendChild(card);
       });
 
-      // Inventário de Runas
       const runeBox = document.createElement('div');
       runeBox.style.marginTop = '10px';
       runeBox.innerHTML = `<div style="font-size:0.8rem; font-weight:700; margin-bottom:6px;">Runas na Bolsa (${state.runes.length}):</div>` +
@@ -755,7 +783,53 @@ export const UI = {
     }
   },
 
-  // --- ABA 6: ESTATÍSTICAS VITALÍCIAS, CONQUISTAS & SAVE ---
+  createSellableInventoryCard(item, idx, callbacks) {
+    const el = document.createElement('div');
+    el.className = 'item-card';
+    const itemIconKey = item.iconKey || (item.type === 'consumable' ? 'items.potionSmall' : `items.${item.slot}`);
+    const sellVal = WorldSystems.getItemSellValue(item);
+    const upgTag = item.upgradeLevel > 0 ? ` +${item.upgradeLevel}` : '';
+    const subInfo = item.type === 'consumable'
+      ? (item.desc || 'Consumível')
+      : this.formatStatsInline(WorldSystems.getItemEffectiveStats(item));
+
+    el.innerHTML = `
+      <div style="flex:1; padding-right:8px;">
+        <strong class="${item.rarity ? `rarity-${item.rarity}` : ''}" style="font-size:0.82rem;">${iconHTML(itemIconKey, { size: 'sm' })} ${item.name}${upgTag}</strong>
+        <div style="font-size:0.7rem; color:var(--text-secondary);">${subInfo}</div>
+      </div>
+      <button class="btn btn-sm" data-sell="1">Vender +${SafeMath.formatNumber(sellVal)} ${iconHTML('currency.gold', { size: 'xs', tone: 'gold' })}</button>
+    `;
+    el.querySelector('[data-sell]').addEventListener('click', () => callbacks?.onSellItem?.(idx));
+    return el;
+  },
+
+  formatItemComparisonHTML(candidateItem, equippedItem) {
+    if (!candidateItem || candidateItem.type === 'consumable') return '';
+    const cmp = WorldSystems.compareItemWithEquipped(candidateItem, equippedItem);
+
+    if (!cmp.hasEquipped) {
+      return `<div style="font-size:0.69rem; color:var(--success); margin-top:3px;">vs ${SLOT_NAMES[candidateItem.slot]} vazio: <strong>Ganho total (+${SafeMath.formatNumber(cmp.totalScoreDelta)})</strong></div>`;
+    }
+
+    const parts = Object.entries(cmp.deltas)
+      .filter(([, diff]) => diff !== 0)
+      .map(([statKey, diff]) => {
+        const sign = diff > 0 ? '+' : '';
+        const color = diff > 0 ? 'var(--success)' : 'var(--danger)';
+        return `<span style="color:${color}; font-weight:700;">${sign}${SafeMath.formatNumber(diff)} ${STAT_SHORT[statKey]}</span>`;
+      });
+
+    const verdict = cmp.totalScoreDelta > 0
+      ? `<span style="color:var(--success);">Compensa trocar (+${SafeMath.formatNumber(cmp.totalScoreDelta)})</span>`
+      : (cmp.totalScoreDelta < 0
+        ? `<span style="color:var(--danger);">Perda geral (${SafeMath.formatNumber(cmp.totalScoreDelta)})</span>`
+        : `<span style="color:var(--text-muted);">Equivalente (=)</span>`);
+
+    const deltaText = parts.length > 0 ? parts.join(' • ') : '<span style="color:var(--text-muted);">Sem mudança nos atributos</span>';
+    return `<div style="font-size:0.69rem; margin-top:3px;">vs <em>${equippedItem.name}</em>: ${deltaText} — ${verdict}</div>`;
+  },
+
   renderSettingsSection(callbacks) {
     ['stats', 'backup'].forEach(sub => {
       document.getElementById(`subtab-s-${sub}`).classList.toggle('btn-primary', this.settingsSubtab === sub);
@@ -790,7 +864,7 @@ export const UI = {
 
   formatStatsInline(stats) {
     const labels = { strength: 'FOR', defense: 'DEF', agility: 'AGI', vitality: 'VIT' };
-    return Object.entries(stats)
+    return Object.entries(stats || {})
       .filter(([, v]) => v > 0)
       .map(([k, v]) => `+${SafeMath.formatNumber(v)} ${labels[k]}`)
       .join(' • ');

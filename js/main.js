@@ -1,8 +1,3 @@
-/**
- * ============================================================================
- * MAIN.JS — ORQUESTRADOR DO LOOP IDLE, EVENTOS E PROGRESSÃO OFFLINE V4
- * ============================================================================
- */
 import { GameConfig } from './config.js';
 import { Formulas } from './formulas.js';
 import { Generators } from './generators.js';
@@ -209,13 +204,29 @@ function init() {
       const item = s.shopStock[idx];
       if (!item || s.gold < item.price) return;
       s.gold -= item.price;
-      s.inventory.push({ ...item, uid: `inv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}` });
+      s.inventory.push({
+        ...item,
+        uid: `inv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+      });
       if (item.type !== 'consumable') {
         s.shopStock.splice(idx, 1);
       }
       StateManager.save();
       refreshUI();
       UI.showToast(`${item.name} adicionado à Bolsa!`);
+    },
+
+    onSellItem(idx) {
+      const s = StateManager.state;
+      const item = s.inventory[idx];
+      if (!item) return;
+      const sellPrice = WorldSystems.getItemSellValue(item);
+      s.gold += sellPrice;
+      s.lifetime.totalGoldEarned += sellPrice;
+      s.inventory.splice(idx, 1);
+      StateManager.save();
+      refreshUI();
+      UI.showToast(`${item.name} vendido por +${SafeMath.formatNumber(sellPrice)} Ouro!`);
     },
 
     onRefreshShop() {
@@ -262,6 +273,19 @@ function init() {
       refreshUI();
       UI.triggerPulse('equipped-slots');
       UI.showToast(`${item.name} equipado!`);
+    },
+
+    onUnequipItem(slot) {
+      const s = StateManager.state;
+      const item = s.equipment[slot];
+      if (!item) return;
+      s.equipment[slot] = null;
+      s.inventory.push(item);
+      clampResources();
+      StateManager.save();
+      refreshUI();
+      UI.triggerPulse('equipped-slots');
+      UI.showToast(`${item.name} removido e guardado na Bolsa.`);
     },
 
     onSalvageItem(idx) {
@@ -316,6 +340,22 @@ function init() {
       clampResources();
       StateManager.save();
       refreshUI();
+    },
+
+    onBuyPrestigeUpgrade(upgId) {
+      const s = StateManager.state;
+      const cfg = GameConfig.prestige.upgrades[upgId];
+      if (!cfg) return;
+      const lvl = s.prestige.upgrades[upgId] || 0;
+      if (lvl >= cfg.maxLevel) return;
+      const cost = Formulas.prestigeUpgradeCost(upgId, lvl);
+      if (s.prestige.essence < cost) return;
+      s.prestige.essence -= cost;
+      s.prestige.upgrades[upgId] = lvl + 1;
+      clampResources();
+      StateManager.save();
+      refreshUI();
+      UI.showToast(`${cfg.name} aprimorado para o Nível ${lvl + 1}!`);
     },
 
     onAwaken() {
